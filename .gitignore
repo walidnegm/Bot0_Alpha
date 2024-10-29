@@ -6,7 +6,11 @@
 .pnp.js
 
 #frame
-/root/backend/frames
+/frames
+
+/transcriptions
+
+/uploads
 
 # testing
 /coverage

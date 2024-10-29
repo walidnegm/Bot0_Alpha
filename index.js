@@ -2,16 +2,23 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');  // Import multer for file uploads
+const { exec } = require('child_process');
 
 const app = express();
 const port = 5000;
 
+// Configure multer for file uploads
+const upload = multer({ dest: 'uploads/' });
+
 app.use(cors());  // Enable CORS for all routes
 app.use(express.json({ limit: '10mb' }));  // Parse JSON request bodies and set large payload limit
 
-// Serve the frames directory as static files
+// Serve the frames and transcriptions directories as static files
 app.use('/frames', express.static(path.join(__dirname, 'frames')));
+app.use('/transcriptions', express.static(path.join(__dirname, 'transcriptions')));
 
+// Chat endpoint
 app.post('/chat', (req, res) => {
   const userMessage = req.body.message;
   if (!userMessage) {
@@ -21,6 +28,42 @@ app.post('/chat', (req, res) => {
   res.json({ response: chatbotResponse });
 });
 
+// Endpoint for transcribing audio using Whisper
+app.post('/transcribe', upload.single('audio'), (req, res) => {
+    const filePath = req.file.path;  // Path to the uploaded audio file
+    const transcriptionsDir = path.join(__dirname, 'transcriptions');  // Ensure transcriptions directory exists
+  
+    if (!fs.existsSync(transcriptionsDir)) {
+      fs.mkdirSync(transcriptionsDir);
+    }
+  
+    // Run Whisper, outputting files to the transcriptions directory
+    exec(`whisper ${filePath} --model small --output_dir ${transcriptionsDir}`, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Error: ${error.message}`);
+        return res.status(500).json({ error: 'Transcription failed' });
+      }
+  
+      const baseFileName = path.basename(filePath, path.extname(filePath));  // Get the base filename of audio file
+      const transcriptionFile = path.join(transcriptionsDir, `${baseFileName}.txt`);
+  
+      // Read transcription content from the generated .txt file
+      fs.readFile(transcriptionFile, 'utf8', (err, data) => {
+        if (err) {
+          console.error(`Error reading transcription file: ${err.message}`);
+          return res.status(500).json({ error: 'Could not read transcription file' });
+        }
+  
+        // Respond with the transcription text
+        res.json({ transcript: data.trim() });
+  
+        // Cleanup: Remove the temporary audio file
+        fs.unlinkSync(filePath);
+      });
+    });
+  });
+  
+// Endpoint to get video frame as a base64-encoded image
 app.get('/video_frame', (req, res) => {
   fs.readFile('frame.jpg', (err, data) => {
     if (err) {
@@ -56,6 +99,7 @@ app.post('/save_frame', (req, res) => {
   });
 });
 
+// Start the server
 app.listen(port, () => {
   console.log(`Backend server is running on http://localhost:${port}`);
 });
