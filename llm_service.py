@@ -53,14 +53,19 @@ async def process_llm(request: LLMRequest):
     transcription_text = request.transcription_text
     print (transcription_text)
     logging.info(f"Received transcription text: {transcription_text}")
-
+    # Add context for the OpenAI API
+    context = (
+        "You are an interview agent and you will evaluate the response, "
+        "providing a score from 1 to 10 in terms of accuracy."
+    )
     logging.info("Sending transcription text to OpenAI API...")
     try:
 
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": transcription_text}
+             messages=[
+                {"role": "system", "content": context},
+                {"role": "user", "content": transcription_text}
             ],
         )
         llm_response = model_response = response.choices[0].message.content
