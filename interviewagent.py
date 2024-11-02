@@ -1,5 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from gtts import gTTS
+from pydantic import BaseModel
+import base64
+from fastapi.middleware.cors import CORSMiddleware
+
 import openai
 import configparser
 import os
@@ -79,3 +84,29 @@ async def get_question(index: int):
     except Exception as e:
         logging.error(f"Error generating question: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error generating question: {str(e)}")
+
+class TTSRequest(BaseModel):
+    text: str
+    language: str = "en"
+
+@app.post("/synthesize_speech")
+async def synthesize_speech(request: TTSRequest):
+    try:
+        # Create an in-memory bytes buffer
+        mp3_fp = BytesIO()
+        
+        # Create gTTS object and save to buffer
+        tts = gTTS(text=request.text, lang=request.language)
+        tts.write_to_fp(mp3_fp)
+        
+        # Get the value and encode to base64
+        mp3_fp.seek(0)
+        audio_base64 = base64.b64encode(mp3_fp.read()).decode('utf-8')
+        
+        return {
+            "audio": audio_base64,
+            "content_type": "audio/mp3"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
