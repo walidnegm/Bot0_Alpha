@@ -27,42 +27,51 @@ app.post('/chat', (req, res) => {
   const chatbotResponse = `You said: ${userMessage}`;
   res.json({ response: chatbotResponse });
 });
-
-// Endpoint for transcribing audio using Whisper
+ // Endpoint for transcribing audio using Whisper
 app.post('/transcribe', upload.single('audio'), (req, res) => {
-    const filePath = req.file.path;  // Path to the uploaded audio file
-    const transcriptionsDir = path.join(__dirname, 'transcriptions');  // Ensure transcriptions directory exists
-  
-    if (!fs.existsSync(transcriptionsDir)) {
-      fs.mkdirSync(transcriptionsDir);
+  const filePath = req.file.path;  // Path to the uploaded audio file
+  const transcriptionsDir = path.join(__dirname, 'transcriptions');  // Ensure transcriptions directory exists
+
+  if (!fs.existsSync(transcriptionsDir)) {
+    fs.mkdirSync(transcriptionsDir);
+  }
+
+  console.log("Starting transcription for file:", filePath);  // Log when transcription starts
+
+  // Run Whisper, outputting files to the transcriptions directory
+  exec(`whisper ${filePath} --model small --output_dir ${transcriptionsDir}`, (error, stdout, stderr) => {
+    if (error) {
+      console.error(`Error: ${error.message}`);
+      return res.status(500).json({ error: 'Transcription failed' });
     }
-  
-    // Run Whisper, outputting files to the transcriptions directory
-    exec(`whisper ${filePath} --model small --output_dir ${transcriptionsDir}`, (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Error: ${error.message}`);
-        return res.status(500).json({ error: 'Transcription failed' });
+
+    const baseFileName = path.basename(filePath, path.extname(filePath));  // Get the base filename of audio file
+    const transcriptionFile = path.join(transcriptionsDir, `${baseFileName}.txt`);
+
+    // Read transcription content from the generated .txt file
+    fs.readFile(transcriptionFile, 'utf8', (err, data) => {
+      if (err) {
+        console.error(`Error reading transcription file: ${err.message}`);
+        return res.status(500).json({ error: 'Could not read transcription file' });
       }
-  
-      const baseFileName = path.basename(filePath, path.extname(filePath));  // Get the base filename of audio file
-      const transcriptionFile = path.join(transcriptionsDir, `${baseFileName}.txt`);
-  
-      // Read transcription content from the generated .txt file
-      fs.readFile(transcriptionFile, 'utf8', (err, data) => {
-        if (err) {
-          console.error(`Error reading transcription file: ${err.message}`);
-          return res.status(500).json({ error: 'Could not read transcription file' });
-        }
-  
-        // Respond with the transcription text
-        res.json({ transcript: data.trim() });
-  
-        // Cleanup: Remove the temporary audio file
-        fs.unlinkSync(filePath);
-      });
+
+      const transcriptText = data.trim();
+      console.log("Transcription completed:", transcriptText);  // Log the completed transcription
+
+      // Check for the wake-up word "bot"
+      if (transcriptText.includes("bot")) {
+        console.log("Wake-up word 'bot' detected in the transcription!");  // Log wake-up word detection
+      }
+
+      // Respond with the transcription text
+      res.json({ transcript: transcriptText });
+
+      // Cleanup: Remove the temporary audio file
+      fs.unlinkSync(filePath);
     });
   });
-  
+});
+
 // Endpoint to get video frame as a base64-encoded image
 app.get('/video_frame', (req, res) => {
   fs.readFile('frame.jpg', (err, data) => {
