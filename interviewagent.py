@@ -4,6 +4,7 @@ from gtts import gTTS
 from pydantic import BaseModel
 import base64
 from fastapi.middleware.cors import CORSMiddleware
+from io import BytesIO  # This was missing
 
 import openai
 import configparser
@@ -22,6 +23,7 @@ app.add_middleware(
 )
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Load OpenAI API key from .config file
 config = configparser.ConfigParser()
@@ -92,21 +94,37 @@ class TTSRequest(BaseModel):
 @app.post("/synthesize_speech")
 async def synthesize_speech(request: TTSRequest):
     try:
+        logger.info(f"Received TTS request for text: {request.text[:50]}...")  # Log first 50 chars
+        
+        if not request.text.strip():
+            raise HTTPException(status_code=400, detail="Text cannot be empty")
+
         # Create an in-memory bytes buffer
         mp3_fp = BytesIO()
         
         # Create gTTS object and save to buffer
-        tts = gTTS(text=request.text, lang=request.language)
+        logger.info("Creating gTTS object...")
+        tts = gTTS(text=request.text, lang=request.language, slow=False)
+        
+        logger.info("Writing to buffer...")
         tts.write_to_fp(mp3_fp)
         
         # Get the value and encode to base64
+        logger.info("Encoding to base64...")
         mp3_fp.seek(0)
         audio_base64 = base64.b64encode(mp3_fp.read()).decode('utf-8')
         
+        logger.info("Successfully created audio")
         return {
             "audio": audio_base64,
             "content_type": "audio/mp3"
         }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error in TTS processing: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"TTS processing failed: {str(e)}")
+
+# Add a test endpoint
+@app.get("/test")
+async def test():
+    return {"status": "TTS server is running"}

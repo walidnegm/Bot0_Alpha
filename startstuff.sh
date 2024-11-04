@@ -23,6 +23,7 @@ check_port() {
 check_port 4000  # React
 check_port 8000  # LLM Service
 check_port 8001  # Interview Agent
+check_port 8002  # Resume Service 
 
 # Start React frontend on port 4000
 echo -e "${GREEN}Starting React frontend on port 4000...${NC}"
@@ -39,6 +40,11 @@ echo -e "${GREEN}Starting FastAPI Interview Agent on port 8001...${NC}"
 cd /root/backend && uvicorn interviewagent:app --reload --port 8001 &
 INTERVIEW_PID=$!
 
+# Start FastAPI Interview Agent on port 8001
+#echo -e "${GREEN}Starting FastAPI resume service Agent on port 8002...${NC}"
+#cd /root/backend && uvicorn resume_service:app --reload --port 8002 &
+#INTERVIEW_PID=$!
+
 # Store PIDs in a file for cleanup
 cd /root
 echo $REACT_PID > .running_services
@@ -49,6 +55,7 @@ echo -e "\n${BLUE}All services started:${NC}"
 echo -e "  • React frontend (http://localhost:4000)"
 echo -e "  • LLM service (http://localhost:8000)"
 echo -e "  • Interview Agent (http://localhost:8001)"
+echo -e "  • Interview Agent (http://localhost:8002)"
 echo -e "\n${BLUE}Press Ctrl+C to stop all services${NC}"
 
 # Function to clean up processes
