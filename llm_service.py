@@ -4,7 +4,6 @@ import openai
 import configparser
 import os
 import logging
-from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from configparser import ConfigParser
 
@@ -19,12 +18,12 @@ app.add_middleware(
 )
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Load OpenAI API key from .config file
 config = configparser.ConfigParser()
 config.read('/root/backend/config.ini')
-openai.api_key = config.get("settings", "OPENAI_API_KEY")
-
+openai_api_key = config.get("settings", "OPENAI_API_KEY")
 
 config = ConfigParser()
 config.read("config.ini")
@@ -35,14 +34,13 @@ openai.api_key = api_key
 
 os.environ["OPENAI_API_KEY"] = api_key
 openai.api_key = os.getenv("OPENAI_API_KEY")
-print("value in enviromnet", os.environ["OPENAI_API_KEY"])
+print("value in environment", os.environ["OPENAI_API_KEY"])
 
 client = openai.Client()
 
-
-
 class LLMRequest(BaseModel):
     transcription_text: str  # Text content for processing instead of file name
+    question: str  # Question to be evaluated along with the transcription
 
 @app.get("/")
 async def read_root():
@@ -51,24 +49,26 @@ async def read_root():
 @app.post("/process_llm")
 async def process_llm(request: LLMRequest):
     transcription_text = request.transcription_text
-    print (transcription_text)
+    question = request.question
     logging.info(f"Received transcription text: {transcription_text}")
+    logging.info(f"Received question: {question}")
+
     # Add context for the OpenAI API
     context = (
-        "You are an interview agent and you will evaluate the response, "
-        "providing a score from 1 to 10 in terms of accuracy."
+        "You are an interview agent and you will evaluate the response, providing a score from 1 to 10 in terms of accuracy."
     )
-    logging.info("Sending transcription text to OpenAI API...")
-    try:
+    prompt = f"Question: {question}\nAnswer: {transcription_text}\nProvide a score from 1 to 10 in terms of accuracy and give a brief explanation."
 
+    logging.info("Sending transcription text and question to OpenAI API...")
+    try:
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
-             messages=[
+            messages=[
                 {"role": "system", "content": context},
-                {"role": "user", "content": transcription_text}
+                {"role": "user", "content": prompt}
             ],
         )
-        llm_response = model_response = response.choices[0].message.content
+        llm_response = response.choices[0].message.content
 
         logging.info("Received response from OpenAI API.")
     except Exception as e:
