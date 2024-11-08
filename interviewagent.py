@@ -44,7 +44,10 @@ print("value in environment", os.environ["OPENAI_API_KEY"])
 client = openai.Client()
 
 # Load JSON content from the file
-json_file_path = "/root/my-react-app/src/sub_thoughts_output_0.json"
+json_file_path = "/root/my-react-app/src/rank_of_sub_thoughts_1.json"
+#json_file_path = "/rank_of_sub_thoughts_1.json"
+print ("json_file_path: ", json_file_path)
+
 try:
     with open(json_file_path, "r") as json_file:
         json_content = json.load(json_file)
