@@ -9,6 +9,7 @@ from configparser import ConfigParser
 
 app = FastAPI()
 
+# CORS middleware setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Or specify the allowed origins
@@ -17,6 +18,7 @@ app.add_middleware(
     allow_headers=["*"],  # Allow all headers
 )
 
+# Logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -41,7 +43,7 @@ client = openai.Client()
 class LLMRequest(BaseModel):
     transcription_text: str
     question: str
-    question_id: int  # Added this field
+    question_id: int
 
 @app.get("/")
 async def read_root():
@@ -64,7 +66,6 @@ async def process_llm(request: LLMRequest):
     question = request.question
     question_id = request.question_id
     
-    # Get or create question context
     if question_id not in question_contexts:
         question_contexts[question_id] = QuestionContext(question, question_id)
     
@@ -72,17 +73,17 @@ async def process_llm(request: LLMRequest):
     
     logging.info(f"Processing response for question ID: {question_id}")
     logging.info(f"Transcription text: {transcription_text}")
-    logging.info(f"Question ID: {question_id}")
 
     try:
-        # Determine intent including question context
+        # Modified intent detection to include "next question" requests
         intent_context = (
             "You are an interview agent. Determine if the interviewee's response is: "
             "1. An attempt to answer the question "
             "2. A request for clarification "
             "3. A request to repeat the question "
+            "4. A request to move to the next question "
             "Consider the full context including previous clarifications and responses. "
-            "Respond ONLY with either 'answer', 'clarification', or 'repeat'."
+            "Respond ONLY with either 'answer', 'clarification', 'repeat', or 'next'."
         )
         
         intent_prompt = (
@@ -90,7 +91,9 @@ async def process_llm(request: LLMRequest):
             f"Current response: {transcription_text}\n"
             f"Previous clarifications: {context.clarification_count}\n"
             f"Previous repeats: {context.repeat_count}\n"
-            "What is the intent of this response?"
+            "What is the intent of this response?\n\n"
+            "Note: If the response includes phrases like 'next question', 'move on', "
+            "'go to the next one', or similar requests to proceed, respond with 'next'."
         )
 
         intent_response = client.chat.completions.create(
@@ -103,6 +106,13 @@ async def process_llm(request: LLMRequest):
         
         interaction_type = intent_response.choices[0].message.content.strip().lower()
         logging.info(f"Detected interaction type: {interaction_type}")
+
+        # Handle "next" request
+        if interaction_type == "next":
+            return {
+                "response": "next_question",  # Special response to trigger next question in frontend
+                "message": "Moving to the next question."
+            }
 
         # Update context based on interaction type
         if interaction_type == "clarification":
@@ -132,7 +142,6 @@ async def process_llm(request: LLMRequest):
             return {"response": f"Here's the question again: {question}"}
         
         else:  # answer
-            # Include previous responses in evaluation
             context.previous_responses.append(transcription_text)
             response_context = (
                 "You are an interview agent evaluating the interviewee's response. "
