@@ -40,9 +40,9 @@ echo -e "${GREEN}Starting FastAPI Interview Agent on port 8001...${NC}"
 cd /root/backend && uvicorn interviewagent:app --reload --port 8001 &
 INTERVIEW_PID=$!
 
-# Start FastAPI Interview Agent on port 8001
-#echo -e "${GREEN}Starting FastAPI resume service Agent on port 8002...${NC}"
-#cd /root/backend && uvicorn resume_service:app --reload --port 8002 &
+# Start FastAPI Interview Agent on port 8002
+echo -e "${GREEN}Starting FastAPI resume service Agent on port 8002...${NC}"
+cd /root/backend && uvicorn resume_service:app --reload --port 8002 &
 #INTERVIEW_PID=$!
 
 # Store PIDs in a file for cleanup
