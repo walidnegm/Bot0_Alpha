@@ -44,7 +44,9 @@ print("value in environment", os.environ["OPENAI_API_KEY"])
 client = openai.Client()
 
 # Load JSON content from the file
-json_file_path = "/root/my-react-app/src/rank_of_sub_thoughts_1.json"
+#json_file_path = "/root/my-react-app/src/rank_of_sub_thoughts_1.json"
+json_file_path = "/root/thoughtgeneration/Bot0_Release1/backend/input_output/thought_generation/array_of_thoughts_output_1_.json"
+
 #json_file_path = "/rank_of_sub_thoughts_1.json"
 print ("json_file_path: ", json_file_path)
 
