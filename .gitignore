@@ -32,3 +32,44 @@ config.ini
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Ignore my sandbox file
+xf_sandbox.ipynb
+
+# Ignore all .log files
+*.log
+
+# Ignore the node_modules directory
+node_modules/
+
+# Ignore folders/files still working on - not ready yet\
+backend/src/prompts/deconstruct_thoughts_prompts.py
+backend/src/prompts/Hegel-im-Gesprach-prompt.py
+backend/src/thought_generator/array_of_thoughts_llama3.py
+backend/src/thought_generator/array_of_thoughts_openai.py
+C:\github\Bot0_Release1\backend\src\utils\llm_data_utils_async.py
+
+# Ignore xf sandbox, document_xf directory, input_output
+backend/sandbox_xf/
+data_xf/
+documentation_xf/
+# backend/input_output
+
+# Ignore virtual environment
+env/
+.venv/
+
+venv/
+
+# Ignore folders / files my own tools
+backend/src/thought_generator/thought_generator_backup_old.py
+backend/src/testing.py
+
+# Ignore api key file
+.env
+
+# Ignore __pycache__ directory
+__pycache__/
+
+# Ignore __pycache__ directory
+config.ini
