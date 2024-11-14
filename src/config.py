@@ -17,7 +17,7 @@ BASE_DIR = Path(find_project_root())
 
 
 # Input/Output Directory
-INPUT_OUTPUT_DIR = BASE_DIR / "backend" / "input_output"  # input/output data folder
+INPUT_OUTPUT_DIR = BASE_DIR / "input_output"  # input/output data folder
 
 THOUGHT_GENERATION_INPUT_OUTPUT_DIR = INPUT_OUTPUT_DIR / "thought_generation"
 THOUGHT_GENERATION_OPENAI_OUTPUT_DIR = (

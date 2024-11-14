@@ -57,7 +57,7 @@ from utils.llm_api_utils import (
 )
 from utils.generic_utils import save_to_json_file
 from models.llm_response_base_models import JSONResponse
-from models.json_validation_models import (
+from models.thought_models import (
     ClusterJSONModel,
     IdeaJSONModel,
     ThoughtJSONModel,

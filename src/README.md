@@ -149,9 +149,9 @@ To generate thoughts using Claude models:
 
 Ensure `config.py` has unique file paths for OpenAI and Claude outputs to prevent overwriting. Example:
 ```python
-rank_of_sub_thoughts_output_0_json = "output/openai_ranked_thoughts.json"
+rank_of_sub_thoughts_output_0_json = "output/openai_rank_of_thoughts.json"
 array_of_sub_thoughts_output_0_json = "output/openai_array_of_thoughts.json"
-rank_of_sub_thoughts_output_1_json = "output/claude_ranked_thoughts.json"
+rank_of_sub_thoughts_output_1_json = "output/claude_rank_of_thoughts.json"
 array_of_sub_thoughts_output_1_json = "output/claude_array_of_thoughts.json"
 ```
 
@@ -180,4 +180,157 @@ Logs are saved in the `logs` directory to capture information on pipeline execut
 - **Vertical Thought Generation**: Expands each main thought into detailed sub-thoughts.
 
 This configuration ensures consistency in handling ideas, thoughts, and sub-thoughts, allowing for scalable content generation across applications.
+
+
+## ThoughtReader: How to Access Thoughts Usage Guide
+
+The `ThoughtReader` class provides a convenient way to load, validate, and interact with structured JSON data related to a main idea and its associated thoughts and sub-thoughts. This can be useful for applications that require sequential processing of complex, hierarchical data.
+
+### Requirements
+
+Ensure you have the following Python libraries installed:
+
+- `pydantic`
+- `logging`
+- `json`
+
+To install `pydantic`, run:
+
+```bash
+pip install pydantic
 ```
+
+### Setting Up
+
+1. **Prepare the JSON File**: The JSON file should contain a top-level structure with an `"idea"` key (a string representing the main theme) and a `"thoughts"` key (a list of thought objects).
+   - Each thought object should contain `"thought"` (name), `"description"`, and a `"sub_thoughts"` list.
+   - Each sub-thought should contain `"name"`, `"description"`, `"importance"`, and an optional `"connection_to_next"` field.
+
+2. **Initialize the ThoughtReader**: Use the path to the JSON file as an argument.
+
+### Basic Usage
+
+Below are examples of how to use each method of the `ThoughtReader` class.
+
+#### 1. Initializing ThoughtReader
+
+```python
+from thought_reader import ThoughtReader
+
+# Initialize ThoughtReader with your JSON file
+thought_reader = ThoughtReader("path/to/your_json_file.json")
+```
+
+#### 2. Getting the Main Idea
+
+```python
+# Fetch the main idea or theme of the thoughts data
+main_idea = thought_reader.get_idea()
+print("Main Idea:", main_idea)
+# Example Output: Main Idea: embedded software development
+```
+
+#### 3. Listing Thought Names
+
+```python
+# Get a list of thought names only (list[str])
+thought_names = thought_reader.get_thoughts()
+print("Thought Names:")
+for thought_name in thought_names:
+    print(thought)
+# Example Output: 
+# Thought Names:
+# Definition and Scope
+# Hardware-Software Integration
+```
+
+#### 4. Getting Thoughts with Descriptions
+
+```python
+# Retrieve thoughts along with their descriptions
+thoughts_with_descriptions = thought_reader.get_thoughts_and_descriptions()
+print("\nThoughts and Descriptions:")
+for thought in thoughts_with_descriptions:
+    print(f"{thought['thought']}: {thought['description']}")
+# Example Output:
+# Definition and Scope: This cluster focuses on basic concepts and definitions...
+# Hardware-Software Integration: This cluster focuses on...
+```
+
+#### 5. Retrieving Sub-Thoughts for a Specific Thought
+> **<span style="color:white">This method generates the actual content for LLMs to generate the question queues for the conversational agent (facilitator).</span>**
+
+Example: Human friendly version
+```python
+# Get sub-thoughts for a specific thought
+thought_name = "Definition and Scope"   # one of the "thoughts" in the idea "embedded software development"
+sub_thoughts = thought_reader.get_sub_thoughts_for_thought(thought_name)
+print(f"\nSub-Thoughts for '{thought_name}':")
+for sub in sub_thoughts:
+    print(f"{sub['name']}: {sub['description']} (Importance: {sub['importance']})")
+# Example Output:
+# Project Requirements Analysis: Identify and document the requirements...
+# System Architecture Design: Design the overall architecture...
+```
+
+Example: LLM friendly version
+```python
+# Get sub-thoughts for a specific thought
+thought_name = "Definition and Scope"   # one of the "thoughts" in the idea "embedded software development"
+sub_thoughts = thought_reader.get_sub_thoughts_for_thought(thought_name)
+print(f"\nSub-Thoughts for '{thought_name}':")
+for sub in sub_thoughts:
+    print(f"{sub['name']}: {sub['description']} (Importance: {sub['importance']})")
+# Example Output:
+# Project Requirements Analysis: Identify and document the requirements...
+# System Architecture Design: Design the overall architecture...
+```
+The "raw output" from the ThoughtReader (a list of dictionaries) would generally be easier to load into prompts for an LLM, especially when generating specific prompts for each sub_thought. Here’s why:
+
+Advantages of Format A
+Structured Data: Format A maintains a structured data format where each sub_thought is encapsulated in a dictionary with keys for name, description, importance, and connection_to_next. This makes it easy to access each piece of information programmatically, allowing you to insert specific values into a prompt.
+
+Simpler Prompt Generation: With structured data, you can dynamically create prompts by looping through each dictionary and accessing fields like name and description without additional parsing or text manipulation.
+
+Consistent Fields: Since each sub_thought in Format A has a consistent set of keys, you avoid parsing issues or potential inconsistencies in how data is organized (which could happen with Format B’s text-based structure).
+
+Example Usage with Format A
+Given Format A, here’s how you could use it to create prompts programmatically:
+
+python
+Copy code
+for sub_thought in sub_thoughts:
+    prompt = f"As a facilitator, generate a question for {sub_thought['name']}, defined as {sub_thought['description']}."
+    # Send prompt to LLM or store for further use
+    print(prompt)
+
+  
+### Error Handling
+
+- If the JSON file structure is incorrect or missing required fields, `ThoughtReader` will raise a `ValueError`.
+- If an invalid thought name is provided in `get_sub_thoughts_for_thought`, a warning will be logged, and an empty list will be returned.
+
+### Sample JSON Structure
+
+Here’s an example JSON structure compatible with `ThoughtReader`:
+
+```json
+{
+    "idea": "embedded software development",
+    "thoughts": [
+        {
+            "thought": "Definition and Scope",
+            "description": "Basic concepts and definitions crucial for understanding embedded software.",
+            "sub_thoughts": [
+                {
+                    "name": "Project Requirements Analysis",
+                    "description": "Identify and document requirements for the embedded system.",
+                    "importance": "High",
+                    "connection_to_next": "Defines system architecture."
+                }
+                // Additional sub-thoughts...
+            ]
+        }
+        // Additional thoughts...
+    ]
+}

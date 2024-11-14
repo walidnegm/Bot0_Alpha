@@ -22,7 +22,7 @@ from models.llm_response_base_models import (
     TabularResponse,
     TextResponse,
 )
-from models.json_validation_models import (
+from models.thought_models import (
     IdeaClusterJSONModel,
     IdeaJSONModel,
     ThoughtJSONModel,

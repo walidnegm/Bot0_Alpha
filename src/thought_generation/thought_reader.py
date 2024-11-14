@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 from pydantic import ValidationError
 
-from models.json_validation_models import IdeaJSONModel, ThoughtJSONModel
+from models.thought_models import IdeaJSONModel, ThoughtJSONModel
 from utils.generic_utils import read_from_json_file
 
 
