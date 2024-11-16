@@ -1,0 +1,30 @@
+{
+    "idea": "embedded software development",
+    "thoughts": [
+        {
+            "thought": "System Resources and Constraints",
+            "description": "Focuses on managing limited system resources and power consumption in embedded systems, ensuring optimal performance within constraints.",
+            "sub_thoughts": null
+        },
+        {
+            "thought": "Real-time Operations and Safety",
+            "description": "Encompasses critical timing requirements and system reliability aspects essential for safe operation.",
+            "sub_thoughts": null
+        },
+        {
+            "thought": "Hardware Interface Management",
+            "description": "Covers the interaction between software and hardware components, including abstraction layers and peripheral communications.",
+            "sub_thoughts": null
+        },
+        {
+            "thought": "Development and Testing Infrastructure",
+            "description": "Includes tools, environments, and methodologies used for developing and validating embedded software.",
+            "sub_thoughts": null
+        },
+        {
+            "thought": "System Software Management",
+            "description": "Addresses core software architecture decisions and maintenance aspects of embedded systems.",
+            "sub_thoughts": null
+        }
+    ]
+}

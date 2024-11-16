@@ -1,0 +1,30 @@
+{
+    "idea": "embedded software development in automotive",
+    "thoughts": [
+        {
+            "thought": "Safety and Compliance",
+            "description": "Core aspects of automotive safety standards and protective measures to ensure reliable vehicle operation and passenger protection",
+            "sub_thoughts": null
+        },
+        {
+            "thought": "System Architecture and Integration",
+            "description": "Fundamental architectural design and integration aspects of automotive software systems",
+            "sub_thoughts": null
+        },
+        {
+            "thought": "Performance and Resource Management",
+            "description": "Critical performance aspects focusing on timing constraints and resource utilization",
+            "sub_thoughts": null
+        },
+        {
+            "thought": "Communication and Connectivity",
+            "description": "Network protocols and remote update capabilities for vehicle systems",
+            "sub_thoughts": null
+        },
+        {
+            "thought": "Quality Assurance and Monitoring",
+            "description": "Comprehensive testing and diagnostic systems for ensuring software reliability and vehicle health",
+            "sub_thoughts": null
+        }
+    ]
+}

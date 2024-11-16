@@ -26,7 +26,10 @@ def vertical_thought_wt_openai_pipeline(
     input_json_file: Union[str, Path],
     output_json_file: Union[Path, str],
     llm_provider: str = "openai",
-):
+    model_id: str = GPT_4_TURBO,
+    num_of_sub_thoughts: int = 5,
+    to_update: bool = False,
+) -> None:
     """
     *OpenAI pipeline
     Pipeline to generate "vertical thoughts" based on a main concept and
@@ -42,8 +45,13 @@ def vertical_thought_wt_openai_pipeline(
         - input_json_file (str.): JSON file w/t topics/concepts generated in the horizontal thought
         creation process from the OpenAI input output data pipeline.
         - output_json_file (str): output JSON file path from the OpenAI input output data pipeline.
+        - to_update (bool): Determine whether to update the output file (indexed_model_file)
+          Default to False.
+          When the output file exists already,
+            if to_update is True: replace it with the new file
+            if False: early return -> skip
 
-    Return: a list of all the sub-topics/concepts (sub-thoughts)
+    Return: None
 
     Raises:
         FileNotFoundError: If the specified directory for the JSON file does not exist.
@@ -56,17 +64,16 @@ def vertical_thought_wt_openai_pipeline(
     """
     logger.info(f"Starting vertical thoughts generation pipeline with {llm_provider}.")
 
-    input_json_file = Path(input_json_file)
-    output_json_file = Path(output_json_file)
+    input_json_file, output_json_file = Path(input_json_file), Path(output_json_file)
+
+    # Check if the output file path already exist
+    if output_json_file.exists() and not to_update:
+        logger.info(f"Output file {output_json_file} already exists. Skip pipeline.")
+        return  # Early return
 
     # Check if the input file paths exist or not
     if not input_json_file.exists():
         raise FileNotFoundError(f"Input data file {input_json_file} does not exist.")
-
-    # Check if the output file path already exist
-    if output_json_file.exists():
-        logger.info(f"Output file {output_json_file} already exists. Skip pipeline.")
-        return  # Early return
 
     # Read horizontal sub thoughts from JSON
     thoughts_data = read_from_json_file(input_json_file)
@@ -76,10 +83,10 @@ def vertical_thought_wt_openai_pipeline(
     # Instantiate thought_generator class and process the method to create sub thoughts
     # by iterating through the already created horizontal/parallel thoughts
     thought_generator = ThoughtGenerator(
-        llm_provider=llm_provider, model_id=GPT_4_TURBO, temperature=0.8
+        llm_provider=llm_provider, model_id=model_id, temperature=0.8
     )
     array_of_thoughts = thought_generator.generate_array_of_thoughts(
-        input_data=thoughts_data,
+        input_data=thoughts_data, num_sub_thoughts=num_of_sub_thoughts
     )
 
     logger.info(f"sub_thought_list: \n{array_of_thoughts}")  # debugging
@@ -89,14 +96,16 @@ def vertical_thought_wt_openai_pipeline(
         thought_generator.save_results(array_of_thoughts, output_json_file)
 
     logger.info(f"Finished vertical thoughts generation pipeline with {llm_provider}.")
-    return array_of_thoughts
 
 
 def vertical_thought_wt_claude_pipeline(
     input_json_file: Union[Path, str],
     output_json_file: Union[Path, str] = None,
+    num_of_sub_thoughts: str = 5,
     llm_provider: str = "claude",
-):
+    model_id: str = CLAUDE_SONNET,
+    to_update: bool = True,
+) -> None:
     """
     *Claude pipeline
     Pipeline to generate "vertical thoughts" based on a main concept and
@@ -112,8 +121,13 @@ def vertical_thought_wt_claude_pipeline(
         - input_json_file (str.): JSON file w/t topics/concepts generated in the horizontal thought
         creation process from the claude input output data pipeline.
         - output_json_file (str): output JSON file path from the claude input output data pipeline.
+        - to_update (bool): Determine whether to update the output file (indexed_model_file)
+          Default to False.
+          When the output file exists already,
+            if to_update is True: replace it with the new file
+            if False: early return -> skip
 
-    Return: a list of all the sub-topics/concepts (sub-thoughts)
+    Return: None
 
     Raises:
         FileNotFoundError: If the specified directory for the JSON file does not exist.
@@ -126,17 +140,16 @@ def vertical_thought_wt_claude_pipeline(
     """
     logger.info(f"Starting vertical thoughts generation pipeline with {llm_provider}.")
 
-    input_json_file = Path(input_json_file)
-    output_json_file = Path(output_json_file)
-
-    # Check if file paths exist or not
-    if not input_json_file.exists():
-        raise FileNotFoundError(f"Input data file {input_json_file} does not exist.")
+    input_json_file, output_json_file = Path(input_json_file), Path(output_json_file)
 
     # Check if the output file path already exist
     if output_json_file.exists():
         logger.info(f"Output file {output_json_file} already exists. Skip pipeline.")
         return  # Early return
+
+    # Check if input file paths exist or not
+    if not input_json_file.exists() and not to_update:
+        raise FileNotFoundError(f"Input data file {input_json_file} does not exist.")
 
     # Read horizontal sub thoughts from JSON
     thoughts_data = read_from_json_file(input_json_file)
@@ -146,10 +159,10 @@ def vertical_thought_wt_claude_pipeline(
     # Instantiate thought_generator class and process the method to create sub thoughts
     # by iterating through the already created horizontal/parallel thoughts
     thought_generator = ThoughtGenerator(
-        llm_provider=llm_provider, model_id=CLAUDE_SONNET, temperature=0.8
+        llm_provider=llm_provider, model_id=model_id, temperature=0.8
     )
     array_of_thoughts = thought_generator.generate_array_of_thoughts(
-        input_data=thoughts_data,
+        input_data=thoughts_data, num_sub_thoughts=num_of_sub_thoughts
     )
 
     logger.info(f"sub_thought_list: \n{array_of_thoughts}")  # debugging
@@ -159,5 +172,3 @@ def vertical_thought_wt_claude_pipeline(
         thought_generator.save_results(array_of_thoughts, output_json_file)
 
     logger.info(f"Finished vertical thoughts generation pipeline with {llm_provider}.")
-
-    return array_of_thoughts

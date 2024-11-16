@@ -35,7 +35,7 @@ def run_pipeline_1a():
     rank_of_thoughts_wt_gpt = rank_of_sub_thoughts_output_0_json
     array_of_thoughts_wt_gpt = array_of_sub_thoughts_output_0_json
     parellel_thoughts_generation_wt_openai_pipeline(
-        main_concept=main_topic, num_thoughts=10, json_file=rank_of_thoughts_wt_gpt
+        main_concept=main_topic, num_of_thoughts=10, json_file=rank_of_thoughts_wt_gpt
     )
     vertical_thought_wt_openai_pipeline(
         input_json_file=rank_of_thoughts_wt_gpt,

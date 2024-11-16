@@ -26,11 +26,48 @@ logger = logging.getLogger(__name__)
 
 def parellel_thoughts_generation_wt_openai_pipeline(
     idea: str,
-    num_thoughts: int,
+    num_of_thoughts: int,
     json_file: Union[Path, str],
     llm_provider: str = "openai",
-):
-    """Pipeline to generate "horizontal thoughts"""
+    model_id: str = GPT_4_TURBO,  # default to 4-turbo (a lot cheaper than 4 but better than 3.5 turbo)
+    to_update: bool = False,
+) -> None:
+    """
+    Generates "horizontal thoughts" (sub-topics) for a given idea using
+    OpenAI's models and saves the results to a JSON file.
+
+    Horizontal thoughts are sub-topics or concepts generated from the main topic (idea)
+    based on clustering and ranking logic.
+
+    Args:
+        idea (str): The main idea or topic for which horizontal thoughts will be generated.
+        num_thoughts (int): Number of horizontal thoughts to generate.
+        json_file (Union[Path, str]): Path to the output JSON file where results will be saved.
+        llm_provider (str): The LLM provider to use (default is "openai").
+        to_update (bool, optional): If True, overwrite the existing output file. Defaults to False.
+            - If `json_file` exists:
+                - When `to_update=True`, the file is overwritten.
+                - When `to_update=False`, the pipeline is skipped (early return).
+
+    Raises:
+        FileNotFoundError: If the specified directory for the output file does not exist.
+        ValueError: If an unexpected error occurs during thought generation or file saving.
+
+    Workflow:
+        - Verifies if the output file exists; skips processing if `to_update=False`.
+        - Ensures the directory for the output file exists.
+        - Configures thought generation parameters (clustering and ranking).
+        - Instantiates the `ThoughtGenerator` class with OpenAI's models and parameters.
+        - Generates horizontal thoughts using the `process_horizontal_thought_generation` method.
+        - Saves the results to the specified JSON file.
+
+    Example Usage:
+        parellel_thoughts_generation_wt_openai_pipeline(
+            idea="Sustainable Energy",
+            num_thoughts=10,
+            json_file="output/sustainable_energy_thoughts.json"
+        )
+    """
     logger.info(
         f"Start running horizontal thoughts generation pipeline with {llm_provider}."
     )
@@ -39,7 +76,7 @@ def parellel_thoughts_generation_wt_openai_pipeline(
     json_file = Path(json_file)
 
     # Check if the output file path already exist
-    if json_file.exists():
+    if json_file.exists() and not to_update:
         logger.info(f"Output file {json_file} already exists. Skip pipeline.")
         return  # Early return
 
@@ -54,11 +91,14 @@ def parellel_thoughts_generation_wt_openai_pipeline(
 
     # Process to generate sub-topics/concepts
     thought_generator = ThoughtGenerator(
-        llm_provider=llm_provider, model_id=GPT_4_TURBO, temperature=0.8
+        llm_provider=llm_provider, model_id=model_id, temperature=0.8
     )  # Instantiate thought_generator class and set the llm parameters
 
     idea_model = thought_generator.process_horizontal_thought_generation(
-        thought=idea, num_sub_thoughts=num_thoughts, num_clusters=6, top_n=top_n
+        thought=idea,
+        num_sub_thoughts=num_of_thoughts,
+        num_clusters=num_clusters,
+        top_n=top_n,
     )
 
     logger.info(f"Thoughts created: {idea_model}")
@@ -77,8 +117,45 @@ def parellel_thoughts_generation_wt_claude_pipeline(
     num_thoughts: int,
     json_file: Union[Path, str],
     llm_provider: str = "claude",
-):
-    """Pipeline to generate "horizontal thoughts"""
+    model_id: str = CLAUDE_SONNET,
+    to_update: bool = False,
+) -> None:
+    """
+    Generates "horizontal thoughts" (sub-topics) for a given idea using
+    Anthropic Claude's models and saves the results to a JSON file.
+
+    Horizontal thoughts are sub-topics or concepts generated from
+    the main topic (idea) based on clustering and ranking logic.
+
+    Args:
+        idea (str): The main idea or topic for which horizontal thoughts will be generated.
+        num_thoughts (int): Number of horizontal thoughts to generate.
+        json_file (Union[Path, str]): Path to the output JSON file where results will be saved.
+        llm_provider (str): The LLM provider to use (default is "claude").
+        to_update (bool, optional): If True, overwrite the existing output file. Defaults to False.
+            - If `json_file` exists:
+                - When `to_update=True`, the file is overwritten.
+                - When `to_update=False`, the pipeline is skipped (early return).
+
+    Raises:
+        FileNotFoundError: If the specified directory for the output file does not exist.
+        ValueError: If an unexpected error occurs during thought generation or file saving.
+
+    Workflow:
+        - Verifies if the output file exists; skips processing if `to_update=False`.
+        - Ensures the directory for the output file exists.
+        - Configures thought generation parameters (clustering and ranking).
+        - Instantiates the `ThoughtGenerator` class with Anthropic Claude's models and parameters.
+        - Generates horizontal thoughts using the `process_horizontal_thought_generation` method.
+        - Saves the results to the specified JSON file.
+
+    Example Usage:
+        parellel_thoughts_generation_wt_claude_pipeline(
+            idea="Artificial Intelligence",
+            num_thoughts=10,
+            json_file="output/ai_thoughts.json"
+        )
+    """
     logger.info(
         f"Start running horizontal thoughts generation pipeline with {llm_provider}."
     )
@@ -87,7 +164,7 @@ def parellel_thoughts_generation_wt_claude_pipeline(
     json_file = Path(json_file)
 
     # Check if the output file path already exist
-    if json_file.exists():
+    if json_file.exists() and not to_update:
         logger.info(f"Output file {json_file} already exists. Skip pipeline.")
         return  # Early return
 
@@ -102,10 +179,13 @@ def parellel_thoughts_generation_wt_claude_pipeline(
 
     # Process to generate sub-topics/concepts
     thought_generator = ThoughtGenerator(
-        llm_provider=llm_provider, model_id=CLAUDE_SONNET, temperature=0.8
+        llm_provider=llm_provider, model_id=model_id, temperature=0.8
     )
     sub_topics = thought_generator.process_horizontal_thought_generation(
-        thought=idea, num_sub_thoughts=num_thoughts, num_clusters=6, top_n=top_n
+        thought=idea,
+        num_sub_thoughts=num_thoughts,
+        num_clusters=num_clusters,
+        top_n=top_n,
     )  # ideally, top_n should be around 4
 
     logger.info(sub_topics)

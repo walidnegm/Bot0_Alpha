@@ -1,7 +1,7 @@
 import logging
 import logging.handlers
 import os
-from utils.find_project_root import find_project_root
+from utils.generic_utils import find_project_root
 
 # Ensure logs directory exists
 root_dir = find_project_root()
