@@ -7,6 +7,10 @@ import os
 import logging
 import json
 from PyPDF2 import PdfReader
+# Create a FastAPI instance
+
+#Refers to the Python file and the FastAPI app instance.
+#If your Python file is named resume_service.py, it will look for the app object defined in that file.
 
 app = FastAPI()
 
@@ -43,6 +47,18 @@ class SkillsResponse(BaseModel):
 
 class SkillsResponse(BaseModel):
     skills: list
+
+#Upload Resume Endpoint
+#HTTP Method: POST API
+#Description: Accepts a PDF file, extracts text using PdfReader, sends the text to OpenAI for skills extraction, and returns the extracted skills.
+#uvicorn resume_service:app --host 0.0.0.0 --port 8002 &
+#Sets the port number where the FastAPI app will listen for incoming requests.
+#Port is the communication endpoint that allows devices and software to send and receive data over a network.
+
+
+#Visiting http://localhost:8002/upload_resume means:
+#IP address: example.com (or its equivalent IP).
+#Port number: 8080.
 
 @app.post("/upload_resume", response_model=SkillsResponse)
 async def upload_resume(file: UploadFile = File(...)):
@@ -87,6 +103,9 @@ async def upload_resume(file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"Error processing resume: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to process resume: {str(e)}")
+
+#Test Endpoint
+#Route: /test
 
 @app.get("/test")
 async def test():
