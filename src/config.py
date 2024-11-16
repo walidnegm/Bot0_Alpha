@@ -15,9 +15,9 @@ from utils.find_project_root import find_project_root
 # Base/Root Directory
 BASE_DIR = Path(find_project_root())
 
-
-# Input/Output Directory
+# *Input/Output Directory
 INPUT_OUTPUT_DIR = BASE_DIR / "input_output"  # input/output data folder
+
 
 # Thought generation direcotry
 THOUGHT_GENERATION_INPUT_OUTPUT_DIR = INPUT_OUTPUT_DIR / "thought_generation"
@@ -39,6 +39,11 @@ CLAUDE_UNINDEXED_MODELS_DIR = CLAUDE_IDEAS_DIR = (
 CLAUDE_INDEXED_MODELS_DIR = CLAUDE_IDEAS_DIR = (
     CLAUDE_THOUGHT_GENERATION_DIR / "models_with_indexes"
 )
+
+
+# *States data direcotry (for state managements, sessions, user, etc.)
+INTERVIEW_STATES_INPUT_OUTPUT_DIR = INPUT_OUTPUT_DIR / "interview_states"
+INTERVIEW_STATES_FILE = INTERVIEW_STATES_INPUT_OUTPUT_DIR / "interview_states_data.json"
 
 # ! JSON output file names for for ideas, thoughts, and sub_thoughts
 # ! These names are "root" names: after importing them, you need to insert suffix in them

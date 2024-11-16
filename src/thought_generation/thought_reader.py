@@ -184,13 +184,15 @@ class IndexedThoughtReader:
     """
     A class for reading and interacting with indexed thoughts data from a JSON file.
 
-    The IndexedThoughtReader class loads and validates a JSON file, initializing it as an instance of
-    IndexedIdeaModel. It provides methods to retrieve the main idea, list of indexed thoughts, descriptions,
-    and detailed information on indexed sub-thoughts for a specific thought.
+    The IndexedThoughtReader class loads and validates a JSON file, initializing it
+    as an instance of IndexedIdeaModel. It provides methods to retrieve the main idea,
+    list of indexed thoughts, descriptions, and detailed information on indexed sub-thoughts
+    for a specific thought.
 
     Attributes:
-        json_file (Path): The path to the JSON file containing thoughts data.
-        idea_instance (IndexedIdeaModel): An instance of IndexedIdeaModel initialized with loaded data.
+        - json_file (Path): The path to the JSON file containing thoughts data.
+        - idea_instance (IndexedIdeaModel): An instance of IndexedIdeaModel
+        initialized with loaded data.
     """
 
     def __init__(self, json_file: Union[Path, str]):
@@ -205,14 +207,17 @@ class IndexedThoughtReader:
 
     def _load_and_validate_data(self) -> IndexedIdeaJSONModel:
         """
-        Loads the JSON data from the specified file path and initializes it as an IndexedIdeaModel.
+        Loads the JSON data from the specified file path and initializes it as
+        an IndexedIdeaModel.
 
         Returns:
-            IndexedIdeaModel: The validated IndexedIdeaModel instance containing thoughts data.
+            IndexedIdeaModel: The validated IndexedIdeaModel instance containing
+            thoughts data.
 
         Raises:
-            ValueError: If the data structure is invalid or does not meet the expected schema.
-            Exception: For any other errors during file reading or data processing.
+            - ValueError: If the data structure is invalid or does not meet
+            the expected schema.
+            - Exception: For any other errors during file reading or data processing.
         """
         try:
             data = read_from_json_file(self.json_file)
@@ -268,7 +273,8 @@ class IndexedThoughtReader:
         Gets a list of thoughts along with their descriptions and indices.
 
         Returns:
-            List[dict]: A list of dictionaries, each containing a thought's index, name, and description.
+            List[dict]: A list of dictionaries, each containing a thought's index, name,
+            and description.
         """
         if not self.idea_instance or not self.idea_instance.thoughts:
             logger.warning("Data not loaded or no thoughts available.")
@@ -286,14 +292,15 @@ class IndexedThoughtReader:
 
     def get_sub_thoughts_for_thought(self, thought_index: int) -> List[dict]:
         """
-        Gets a list of all sub-thoughts and their descriptions for a specific thought based on index.
+        Gets a list of all sub-thoughts and their descriptions for a specific thought based
+        on index.
 
         Args:
             thought_index (int): The index of the thought for which to retrieve sub-thoughts.
 
         Returns:
-            List[dict]: A list of dictionaries, each containing a sub-thought's index, name, description,
-                        importance, and connection to the next sub-thought.
+            List[dict]: A list of dictionaries, each containing a sub-thought's index, name,
+            description, importance, and connection to the next sub-thought.
         """
         if not self.idea_instance or not self.idea_instance.thoughts:
             logger.warning("Data not loaded or no thoughts available.")
@@ -314,3 +321,17 @@ class IndexedThoughtReader:
 
         logger.warning(f"Thought with index '{thought_index}' not found.")
         return []
+
+    def dump_all(self) -> dict:
+        """
+        Returns the entire content of the loaded IndexedIdeaJSONModel as a dictionary.
+
+        This method is useful for debugging, exporting, or working with the full data structure.
+
+        Returns:
+            dict: A dictionary representation of the entire IndexedIdeaJSONModel.
+        """
+        if not self.idea_instance:
+            logger.warning("Data not loaded or no content to dump.")
+            return {}
+        return self.idea_instance.model_dump()

@@ -2,53 +2,28 @@
     "idea": "embedded software development in automotive",
     "thoughts": [
         {
-            "thought": "Integration of software and hardware",
-            "description": "Seamless integration of software and hardware components for optimizing automotive performance.",
+            "thought": "System Architecture and Standards",
+            "description": "Focuses on the foundational frameworks and protocols necessary for automotive software development, ensuring robust, scalable, and standardized system operations.",
             "sub_thoughts": null
         },
         {
-            "thought": "Safety-critical software requirements",
-            "description": "Ensuring safety standards compliance and meeting industry regulations in embedded software development.",
+            "thought": "Safety and Compliance",
+            "description": "Encompasses the critical aspects of ensuring that automotive software adheres to safety standards and regulations, vital for legal compliance and passenger safety.",
             "sub_thoughts": null
         },
         {
-            "thought": "Compliance with industry regulations",
-            "description": "Ensuring safety standards compliance and meeting industry regulations in embedded software development.",
+            "thought": "Advanced Vehicle Functions",
+            "description": "Covers the integration of higher-level functionalities that enhance vehicle capabilities, such as autonomous operations and energy management.",
             "sub_thoughts": null
         },
         {
-            "thought": "Real-time processing and responsiveness",
-            "description": "Designing for real-time processing needs and incorporating security measures in embedded software.",
+            "thought": "Connectivity and Interface",
+            "description": "Deals with the development of systems that improve vehicle communication both internally and externally, alongside enhancing user interaction.",
             "sub_thoughts": null
         },
         {
-            "thought": "Security considerations in software design",
-            "description": "Designing for real-time processing needs and incorporating security measures in embedded software.",
-            "sub_thoughts": null
-        },
-        {
-            "thought": "Interfacing with various automotive sensors",
-            "description": "Interfacing with automotive sensors and fostering collaboration between software and automotive engineers.",
-            "sub_thoughts": null
-        },
-        {
-            "thought": "Collaboration between software and automotive engineers",
-            "description": "Interfacing with automotive sensors and fostering collaboration between software and automotive engineers.",
-            "sub_thoughts": null
-        },
-        {
-            "thought": "Optimizing software for resource-constrained environments",
-            "description": "Optimizing software for resource-constrained environments and ensuring thorough testing and validation processes.",
-            "sub_thoughts": null
-        },
-        {
-            "thought": "Testing and validation processes",
-            "description": "Optimizing software for resource-constrained environments and ensuring thorough testing and validation processes.",
-            "sub_thoughts": null
-        },
-        {
-            "thought": "Software update and maintenance strategies",
-            "description": "Establishing effective software update and maintenance strategies to enhance functionality and address bugs.",
+            "thought": "Operational Efficiency",
+            "description": "Focuses on software tools that aid in the regular maintenance, diagnostic, and operational enhancements of automotive systems.",
             "sub_thoughts": null
         }
     ]

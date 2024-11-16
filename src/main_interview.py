@@ -10,7 +10,9 @@ from utils.generic_utils import read_from_json_file
 from pipelines.interview_pipeline_async import (
     interview_pipeline_async,
 )
-from src.pipelines.thought_processing_pipeline import indexed_thought_reading_pipeline
+from src.pipelines.thought_processing_pipeline import (
+    indexed_thought_processing_pipeline,
+)
 
 from utils.generic_utils import pretty_print_json
 from thought_generation.thought_reader import ThoughtReader
@@ -47,7 +49,7 @@ def run_indexed_thought_reading_pipeline():
     # )
 
     # OpenAI
-    indexed_thought_reading_pipeline(
+    indexed_thought_processing_pipeline(
         unindexed_model_file=openai_file_without_index,
         indexed_model_file=openai_file_with_index,
         thought_index=0,

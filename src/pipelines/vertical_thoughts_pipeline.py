@@ -27,6 +27,7 @@ def vertical_thought_wt_openai_pipeline(
     output_json_file: Union[Path, str],
     llm_provider: str = "openai",
     model_id: str = GPT_4_TURBO,
+    num_of_sub_thoughts: int = 5,
     to_update: bool = False,
 ) -> None:
     """
@@ -85,7 +86,7 @@ def vertical_thought_wt_openai_pipeline(
         llm_provider=llm_provider, model_id=model_id, temperature=0.8
     )
     array_of_thoughts = thought_generator.generate_array_of_thoughts(
-        input_data=thoughts_data,
+        input_data=thoughts_data, num_sub_thoughts=num_of_sub_thoughts
     )
 
     logger.info(f"sub_thought_list: \n{array_of_thoughts}")  # debugging
@@ -100,6 +101,7 @@ def vertical_thought_wt_openai_pipeline(
 def vertical_thought_wt_claude_pipeline(
     input_json_file: Union[Path, str],
     output_json_file: Union[Path, str] = None,
+    num_of_sub_thoughts: str = 5,
     llm_provider: str = "claude",
     model_id: str = CLAUDE_SONNET,
     to_update: bool = True,
@@ -160,7 +162,7 @@ def vertical_thought_wt_claude_pipeline(
         llm_provider=llm_provider, model_id=model_id, temperature=0.8
     )
     array_of_thoughts = thought_generator.generate_array_of_thoughts(
-        input_data=thoughts_data,
+        input_data=thoughts_data, num_sub_thoughts=num_of_sub_thoughts
     )
 
     logger.info(f"sub_thought_list: \n{array_of_thoughts}")  # debugging

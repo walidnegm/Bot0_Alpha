@@ -21,8 +21,10 @@ from utils.generic_utils import (
 logger = logging.getLogger(__name__)
 
 
-def unindexed_thought_reading_pipeline(json_file: Union[Path, str]):
-    """"""
+def unindexed_thought_processing_pipeline(json_file: Union[Path, str]):
+    """
+    *This pipeline is intended for analysis and QA data!
+    """
 
     # Initialize ThoughtReader with your JSON file
     thought_reader = ThoughtReader(json_file)
@@ -60,13 +62,10 @@ def unindexed_thought_reading_pipeline(json_file: Union[Path, str]):
         print(f"{sub['name']}: {sub['description']} (Importance: {sub['importance']})")
 
 
-def indexed_thought_reading_pipeline(
-    unindexed_model_file: Union[Path, str],
+def indexed_thought_processing_pipeline(
     indexed_model_file: Union[Path, str],
     thought_index: int = 0,
-    make_indexed_file: Callable[
-        [Union[Path, str], Union[Path, str]], None
-    ] = generate_indexed_model_file,
+    # sub_thought_index: int = None,
     reader: Callable[[Union[Path, str]], "IndexedThoughtReader"] = IndexedThoughtReader,
 ) -> List[Dict[str, Union[str, int, None]]]:
     """
@@ -74,13 +73,10 @@ def indexed_thought_reading_pipeline(
     and retrieves thought and sub-thought details for a specified thought index.
 
     Args:
-        unindexed_model_file (Union[Path, str]): Path to the JSON file containing the unindexed model.
-        indexed_model_file (Union[Path, str]): Path where the indexed model JSON file will be saved.
-        thought_index (int, optional): The index of the thought to retrieve sub-thoughts for. Defaults to 0.
-        make_indexed_file (Callable[[Union[Path, str], Union[Path, str]], None], optional):
-            A callable that generates the indexed model file from the unindexed file.
-            Defaults to `generate_indexed_model_file`.
-        reader (Callable[[Union[Path, str]], IndexedThoughtReader], optional):
+        - indexed_model_file (Union[Path, str]): Path where the indexed model JSON file will be saved.
+        - thought_index (int, optional): The index of the thought to retrieve sub-thoughts for. Defaults to 0.
+        - sub_thought_index (int, optional): The index of the sub_thought. Defaults to 0.
+        - reader (Callable[[Union[Path, str]], IndexedThoughtReader], optional):
             A callable to instantiate the reader that can access the indexed model.
             Defaults to `IndexedThoughtReader`.
 
@@ -95,30 +91,30 @@ def indexed_thought_reading_pipeline(
         - Instantiates the `reader` to access the indexed model file.
         - Retrieves the main idea, list of thoughts, descriptions, and sub-thoughts for the specified index.
     """
-    unindexed_model_file, indexed_model_file = Path(unindexed_model_file), Path(
-        indexed_model_file
-    )
-
-    # Create the indexed idea model file
-    make_indexed_file(unindexed_model_file, indexed_model_file)
+    indexed_model_file = Path(indexed_model_file)
 
     # Instantiate the reader (IndexedThoughtReader)
     thought_reader = reader(indexed_model_file)
 
-    # Now `indexed_idea` contains indexed thoughts and sub-thoughts without modifying the original model
     # Get the main idea
-    print(thought_reader.get_idea())
+    idea = thought_reader.get_idea()
 
     # Get a list of indexed thoughts
-    print(thought_reader.get_thoughts())
+    list_of_thoughts = thought_reader.get_thoughts()
 
     # Get thoughts with descriptions
-    print(thought_reader.get_thoughts_and_descriptions())
+    list_of_thoughts_descriptions = thought_reader.get_thoughts_and_descriptions()
+
+    print(f"idea: {idea}")
+
+    # print(f"thoughts: {list_of_thoughts}")
+
+    print(f"thought descriptions: {list_of_thoughts_descriptions}")
 
     # Get sub-thoughts for a specific thought by index
     sub_thoughts = thought_reader.get_sub_thoughts_for_thought(
         thought_index=thought_index
     )
-    print(sub_thoughts)
+    logger.info(sub_thoughts)
 
     return sub_thoughts

@@ -2,53 +2,28 @@
     "idea": "embedded software development",
     "thoughts": [
         {
-            "thought": "Hardware Constraints",
-            "description": "Management of system resources and optimization for constrained environments, focusing on efficiency and performance.",
+            "thought": "System Resources and Constraints",
+            "description": "Focuses on managing limited system resources and power consumption in embedded systems, ensuring optimal performance within constraints.",
             "sub_thoughts": null
         },
         {
-            "thought": "Power Management",
-            "description": "Management of system resources and optimization for constrained environments, focusing on efficiency and performance.",
+            "thought": "Real-time Operations and Safety",
+            "description": "Encompasses critical timing requirements and system reliability aspects essential for safe operation.",
             "sub_thoughts": null
         },
         {
-            "thought": "Code Optimization",
-            "description": "Management of system resources and optimization for constrained environments, focusing on efficiency and performance.",
+            "thought": "Hardware Interface Management",
+            "description": "Covers the interaction between software and hardware components, including abstraction layers and peripheral communications.",
             "sub_thoughts": null
         },
         {
-            "thought": "Firmware Architecture",
-            "description": "Core architectural components and interfaces that form the foundation of embedded systems.",
+            "thought": "Development and Testing Infrastructure",
+            "description": "Includes tools, environments, and methodologies used for developing and validating embedded software.",
             "sub_thoughts": null
         },
         {
-            "thought": "Communication Protocols",
-            "description": "Core architectural components and interfaces that form the foundation of embedded systems.",
-            "sub_thoughts": null
-        },
-        {
-            "thought": "Testing and Validation",
-            "description": "Processes and methods to ensure system reliability, safety, and proper functionality.",
-            "sub_thoughts": null
-        },
-        {
-            "thought": "Safety and Reliability",
-            "description": "Processes and methods to ensure system reliability, safety, and proper functionality.",
-            "sub_thoughts": null
-        },
-        {
-            "thought": "Development Tools",
-            "description": "Tools and environments required for embedded software development and debugging.",
-            "sub_thoughts": null
-        },
-        {
-            "thought": "Real-time Processing",
-            "description": "Critical operational aspects including timing requirements and system maintenance.",
-            "sub_thoughts": null
-        },
-        {
-            "thought": "Update and Maintenance",
-            "description": "Critical operational aspects including timing requirements and system maintenance.",
+            "thought": "System Software Management",
+            "description": "Addresses core software architecture decisions and maintenance aspects of embedded systems.",
             "sub_thoughts": null
         }
     ]

@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 def parellel_thoughts_generation_wt_openai_pipeline(
     idea: str,
-    num_thoughts: int,
+    num_of_thoughts: int,
     json_file: Union[Path, str],
     llm_provider: str = "openai",
     model_id: str = GPT_4_TURBO,  # default to 4-turbo (a lot cheaper than 4 but better than 3.5 turbo)
@@ -96,7 +96,7 @@ def parellel_thoughts_generation_wt_openai_pipeline(
 
     idea_model = thought_generator.process_horizontal_thought_generation(
         thought=idea,
-        num_sub_thoughts=num_thoughts,
+        num_sub_thoughts=num_of_thoughts,
         num_clusters=num_clusters,
         top_n=top_n,
     )

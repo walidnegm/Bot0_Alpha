@@ -1,6 +1,28 @@
 """
-Pipeline to generate thoughts and save data to JSON.
+Pipeline to generate thoughts and save data to JSON for a single idea.
 
+Hierarchical Levels of ideas, thoughts, and sub_thoughts
+1. **Idea Level**:
+   - Represents the main overarching topic.
+   - **Model**: `IdeaJSONModel`
+     - `idea` (str): The primary topic or theme.
+     - `thoughts` (Optional[List[ThoughtJSONModel]]): Main thoughts related to the idea.
+     - `clusters` (Optional[List[ClusterJSONModel]]): Optional when clustering is applied.
+
+2. **Thought Level**:
+   - Represents major themes under the main idea.
+   - **Model**: `ThoughtJSONModel`
+     - `thought` (str): Name of the thought.
+     - `description` (Optional[str]): Brief summary of the thought.
+     - `sub_thoughts` (Optional[List[SubThoughtJSONModel]]): Sub-thoughts providing additional details.
+
+3. **Sub-Thought Level**:
+   - Represents detailed components of each thought.
+   - **Model**: `SubThoughtJSONModel`
+     - `name` (str): Name of the sub-thought.
+     - `description` (str): Explanation of the sub-thought.
+     - `importance` (Optional[str]): Relative importance.
+     - `connection_to_next` (Optional[str]): Connection to subsequent sub-thoughts.
 
 Module for handling directory paths and file name roots used in the thought generation pipeline.
 
@@ -78,7 +100,7 @@ ideas = [
 # other ideas:
 # "RTOS (Real-Time Operating System)"
 
-outer_idea = ideas[1]
+outer_idea = ideas[2]
 logger.info(f"top-level idea/topic: {ideas}")
 
 
@@ -126,8 +148,8 @@ def run_pipeline_opeanai(idea: str = outer_idea):  # OpenAI pipeline
 
     # Step 0: setup model_id (TODO: later set up temperature too)
     default_model = GPT_4_TURBO
-    # openai_model_id = default_model  # Set to default or customize
-    openai_model_id = GPT_35_TURBO
+    openai_model_id = default_model  # Set to default or customize
+    # openai_model_id = GPT_35_TURBO
     # Step 1: set up file paths
 
     # Common parameters
@@ -177,13 +199,14 @@ def run_pipeline_opeanai(idea: str = outer_idea):  # OpenAI pipeline
     # *Step 2: Run pipelines to create & save original (unindexed) rank and array of thougths files
     parellel_thoughts_generation_wt_openai_pipeline(
         idea=idea,
-        num_thoughts=10,
+        num_of_thoughts=10,
         json_file=rank_of_thoughts_file,
         model_id=openai_model_id,
     )
     vertical_thought_wt_openai_pipeline(
         input_json_file=rank_of_thoughts_file,
         output_json_file=array_of_thoughts_file,
+        num_of_sub_thoughts=5,
         model_id=openai_model_id,
     )
     logger.info(
@@ -220,8 +243,8 @@ def run_pipeline_claude(idea: str = outer_idea):  # Claude pipeline
     )
     # Step 0: setup model_id (TODO: later set up temperature too)
     default_model = CLAUDE_SONNET
-    # claude_model_id = default_model  # Set to default or customize
-    claude_model_id = CLAUDE_HAIKU
+    claude_model_id = default_model  # Set to default or customize
+    # claude_model_id = CLAUDE_HAIKU
 
     # Step 1: set up file paths
 
@@ -279,6 +302,7 @@ def run_pipeline_claude(idea: str = outer_idea):  # Claude pipeline
     vertical_thought_wt_claude_pipeline(
         input_json_file=rank_of_thoughts_file,
         output_json_file=array_of_thoughts_file,
+        num_of_sub_thoughts=5,
         model_id=claude_model_id,
     )
 
