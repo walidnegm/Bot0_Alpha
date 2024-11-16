@@ -13,7 +13,7 @@ from utils.generic_utils import pretty_print_json
 logger = logging.getLogger(__name__)
 
 
-async def run_topic_conversation_pipeline_async(sub_thought_file, memory_file):
+async def interview_pipeline_async(sub_thought_file, memory_file):
 
     # Step 1. Read a main thought and its sub-thoughts from JSON
     try:

@@ -115,6 +115,8 @@ Important:
 - Relevance scores should sum to 1.0 across all sub-thoughts
 """
 
+# TODO: Retire this prompt template after the thought gen pipeline is stablized
+# TODO: this is the old version
 RECLUSTER_AND_PICK_TOP_SUB_THOUGHTS_PROMPT = """
 You are an expert in organizing complex ideas into distinct, well-defined clusters.
 
@@ -158,20 +160,25 @@ You are an expert in organizing complex ideas into distinct, well-defined cluste
 
 Task:
 You are given a list of thoughts related to the main idea: "{idea}".
-Each thought represents a distinct aspect of this idea. Your task is to re-organize these thoughts 
-into {num_clusters} meaningful and distinct clusters.
+Each thought represents a distinct aspect of this idea. Your task is to:
+1. Re-organize these thoughts into exactly {num_clusters} meaningful and distinct clusters.
+2. Select and return only the top {top_n} clusters that are the most distinct from each other.
 
 Instructions:
-1. Carefully analyze each thought and group them based on thematic or conceptual similarities. 
-2. Provide a name for each cluster that best represents the overall theme of the grouped thoughts.
-3. Select and return the top {top_n} clusters that are most distinct from each other and 
-   provide a brief description (1-2 sentences) of each cluster's key themes.
+- Carefully analyze each thought and group them based on thematic or conceptual similarities.
+- Provide a unique name for each cluster that best represents its overall theme.
+- Ensure each cluster includes thoughts that are non-overlapping and distinct from other clusters.
+- After forming {num_clusters} clusters, choose only the top {top_n} clusters that are \
+  the most distinct and meaningful.
+- Provide a brief description (1-2 sentences) for each selected cluster, summarizing its key themes.
 
-Thoughts List:
+Thoughts List (in JSON format):
 {thoughts_list}
 
-Ensure your response is a valid JSON object with the following format:
-
+Ensure your response meets these requirements:
+1. Return only the top {top_n} clusters.
+2. Ensure each cluster is distinct and does not repeat thoughts.
+3. Your response must strictly adhere to the following JSOn structure:
 {{
   "idea": "{idea}",
   "clusters": [
@@ -184,8 +191,10 @@ Ensure your response is a valid JSON object with the following format:
   ]
 }}
 
-Ensure your response is a valid JSON object with the exact structure provided above, 
-without any additional text, explanations, or markdown syntax.
+### Rules:
+1. Return only the top {top_n} clusters.
+2. Ensure each cluster is distinct, with no repeated thoughts across clusters.
+3. Do not include any additional text, explanations, or markdown syntax. Only return the JSON object.
 """
 
 VERTICAL_SUB_THOUGHT_GENERATION_PROMPT = """

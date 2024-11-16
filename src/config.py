@@ -19,35 +19,34 @@ BASE_DIR = Path(find_project_root())
 # Input/Output Directory
 INPUT_OUTPUT_DIR = BASE_DIR / "input_output"  # input/output data folder
 
+# Thought generation direcotry
 THOUGHT_GENERATION_INPUT_OUTPUT_DIR = INPUT_OUTPUT_DIR / "thought_generation"
-THOUGHT_GENERATION_OPENAI_OUTPUT_DIR = (
-    THOUGHT_GENERATION_INPUT_OUTPUT_DIR / "openai_output"
+
+# *OpenAI directories: openai thought gen/ideas/models wt indexes, models wo indexes
+OPENAI_THOUGHT_GENERATION_DIR = (
+    THOUGHT_GENERATION_INPUT_OUTPUT_DIR / "openai_thought_generation"
 )
-THOUGHT_GENERATION_CLAUDE_OUTPUT_DIR = (
-    THOUGHT_GENERATION_INPUT_OUTPUT_DIR / "claude_output"
+OPENAI_UNINDEXED_MODELS_DIR = OPENAI_THOUGHT_GENERATION_DIR / "models_without_indexes"
+OPENAI_INDEXED_MODELS_DIR = OPENAI_THOUGHT_GENERATION_DIR / "models_with_indexes"
+
+# *Claude directories: claude thought gen/ideas/models wt indexes, models wo indexes
+CLAUDE_THOUGHT_GENERATION_DIR = (
+    THOUGHT_GENERATION_INPUT_OUTPUT_DIR / "claude_thought_generation"
+)
+CLAUDE_UNINDEXED_MODELS_DIR = CLAUDE_IDEAS_DIR = (
+    CLAUDE_THOUGHT_GENERATION_DIR / "models_without_indexes"
+)
+CLAUDE_INDEXED_MODELS_DIR = CLAUDE_IDEAS_DIR = (
+    CLAUDE_THOUGHT_GENERATION_DIR / "models_with_indexes"
 )
 
+# ! JSON output file names for for ideas, thoughts, and sub_thoughts
+# ! These names are "root" names: after importing them, you need to insert suffix in them
+# ! to form the actual file names
 # JSON output file paths: OpenAI
-rank_of_thoughts_openai_json_output_file = (
-    THOUGHT_GENERATION_OPENAI_OUTPUT_DIR / "rank_of_thoughts_output_openai.json"
-)
-array_of_thoughts_openai_json_output_file = (
-    THOUGHT_GENERATION_OPENAI_OUTPUT_DIR / "array_of_thoughts_output_openai.json"
-)
+RANK_OF_THOUGHTS_FILE_NAME_ROOT = "rank_of_thoughts_output"
+ARRAY_OF_THOUGHTS_FILE_NAME_ROOT = "array_of_thoughts_output"
 
-# JSON output file paths: Claude
-rank_of_thoughts_claude_output_file = (
-    THOUGHT_GENERATION_CLAUDE_OUTPUT_DIR / "rank_of_thoughts_output_claude.json"
-)
-array_of_thoughts_claude_json_output_file = (
-    THOUGHT_GENERATION_CLAUDE_OUTPUT_DIR / "array_of_thoughts_output_claude.json"
-)
-# rank_of_sub_thoughts_output_2_json = (
-#     THOUGHT_GENERATION_INPUT_OUTPUT_DIR / "parallel_sub_thoughts_output_2.json"
-# )
-# array_of_sub_thoughts_output_2_json = (
-#     THOUGHT_GENERATION_INPUT_OUTPUT_DIR / "array_of_thoughts_output_2.json"
-# )
 
 MEMORY_DIR = INPUT_OUTPUT_DIR / "memory"
 

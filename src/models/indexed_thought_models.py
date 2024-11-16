@@ -1,5 +1,7 @@
 """
-json_response_models.py
+indexed_idea_model.py
+
+*This is the indexed version
 
 This module contains Pydantic models for validating and processing structured data related to 
 concepts and sub-concepts, known as "thoughts" and "sub-thoughts." These models enable the 
@@ -26,8 +28,6 @@ import uuid
 
 # Set up logger
 logger = logging.getLogger(__name__)
-
-# indexed_idea_model.py
 
 
 class IndexedSubThoughtJSONModel(BaseModel):

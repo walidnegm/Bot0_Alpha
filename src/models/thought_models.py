@@ -117,9 +117,13 @@ class ThoughtJSONModel(BaseModel):
 
     class Config:
         "Remove None values"
-        orm_mode = True
+        from_attributes = True
+
         # Exclude None values from JSON output
         json_encoders = {Optional: lambda v: v or None}
+
+        # Exclude fields with None values in JSON output
+        exclude_none = True
 
 
 class ClusterJSONModel(BaseModel):
@@ -131,7 +135,7 @@ class ClusterJSONModel(BaseModel):
 
     class Config:
         "Remove None values"
-        orm_mode = True
+        from_attribute = True
         # Exclude None values from JSON output
         json_encoders = {Optional: lambda v: v or None}
 
@@ -152,7 +156,7 @@ class IdeaJSONModel(BaseModel):
 
     class Config:
         "Remove None values"
-        orm_mode = True
+        from_attribute = True
         # Exclude None values from JSON output
         json_encoders = {Optional: lambda v: v or None}
 

@@ -145,7 +145,9 @@ def get_openai_api_key() -> str:
 
 def validate_json_response(
     data: Union[Dict[str, Any], List[Dict[str, Any]]], json_type: str
-) -> Union[EvalJSONModel, ThoughtJSONModel, JSONResponse]:
+) -> Union[
+    EvalJSONModel, IdeaClusterJSONModel, IdeaJSONModel, ThoughtJSONModel, JSONResponse
+]:
     """
     Validates JSON data against a specific Pydantic model based on `json_type`.
 

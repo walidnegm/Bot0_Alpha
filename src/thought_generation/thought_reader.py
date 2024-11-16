@@ -201,7 +201,7 @@ class IndexedThoughtReader:
             json_file (Union[Path, str]): The path to the JSON file containing the data.
         """
         self.json_file = Path(json_file)
-        self.idea_instance: IndexedIdeaModel = self._load_and_validate_data()
+        self.idea_instance: IndexedIdeaJSONModel = self._load_and_validate_data()
 
     def _load_and_validate_data(self) -> IndexedIdeaJSONModel:
         """

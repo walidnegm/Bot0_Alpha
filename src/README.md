@@ -42,9 +42,38 @@ The thought generation pipeline is organized into various levels—**idea**, **t
 
 ## Data Input/Output Pipeline
 
-The pipeline includes specific workflows and JSON structures for handling idea, thought, and sub-thought generations using LLMs.
+The pipeline manages workflows and JSON structures for generating ideas, thoughts, and sub-thoughts using LLMs. Below is an overview of the directory structure and file naming conventions.
 
-### Pipeline Workflow
+### Directory Structure
+- **`BASE_DIR`**: The root directory of the project.
+- **`input_output/`**: Contains all input and output data.
+  - **`thought_generation/`**: Subdirectory for thought generation files:
+    - **`openai_thought_generation/`**:
+      - **`models_without_indexes/`**: Stores JSON files for unindexed OpenAI-generated models.
+      - **`models_with_indexes/`**: Stores JSON files for indexed OpenAI-generated models.
+    - **`claude_thought_generation/`**:
+      - **`models_without_indexes/`**: Stores JSON files for unindexed Claude-generated models.
+      - **`models_with_indexes/`**: Stores JSON files for indexed Claude-generated models.
+
+### Example File Names
+- **Unindexed File**:  
+  `array_of_thoughts_output_without_index_embedded_software_development_openai.json`
+- **Indexed File**:  
+  `array_of_thoughts_output_with_index_embedded_software_development_openai.json`
+
+### Configuration Paths
+The paths for input/output directories are defined in `config.py` for consistency:
+
+Example:
+- **`BASE_DIR`**: Root project directory.
+- **`INPUT_OUTPUT_DIR`**: Contains all input/output data:
+  - **OpenAI Output Directory**: `thought_generation/openai_thought_generation/`
+  - **Claude Output Directory**: `thought_generation/claude_thought_generation/`
+- **`MEMORY_DIR`**: Stores intermediate or memory-based data.
+
+---
+
+## Pipeline Workflow
 
 1. **Horizontal Thought Generation**
    - Generates **thoughts** based on the main **idea**.
@@ -56,16 +85,6 @@ The pipeline includes specific workflows and JSON structures for handling idea, 
    - **Input**: JSON files from horizontal thought generation.
    - **Output**: JSON files with detailed **sub_thoughts** for each **thought**.
 
-### Directory and File Path Configurations
-
-Configuration paths are specified in `config.py` to ensure consistent file management. Key directories include:
-
-- **BASE_DIR**: Root directory of the project.
-- **INPUT_OUTPUT_DIR**: Stores all input/output data.
-  - `input_output/thought_generation`
-    - **THOUGHT_GENERATION_OPENAI_OUTPUT_DIR**: Stores OpenAI-generated output files.
-    - **THOUGHT_GENERATION_CLAUDE_OUTPUT_DIR**: Stores Claude-generated output files.
-- **Memory Directory**: `MEMORY_DIR` for intermediate or memory-based processing.
 
 ### JSON File Structures
 
@@ -334,3 +353,5 @@ Here’s an example JSON structure compatible with `ThoughtReader`:
         // Additional thoughts...
     ]
 }
+```
+

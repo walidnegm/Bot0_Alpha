@@ -4,31 +4,53 @@ Author: Xiao-Fei Zhang
 Last updated on: 
 
 Description:
-This module provides a framework for generating sub-thoughts using the OpenAI API and 
-evaluating their similarity through self-attention mechanisms using a transformer model (BERT). 
+This module provides a framework for generating thoughts and sub-thoughts using
+LLM APIs (OpenAI API, Anthropic Claude) and local LLM (LlaMA).
 
-The module identifies distinct sub-thoughts by:
-- clustering similar concepts together, 
-- reducing redundancy, and 
-- selecting representative ideas. 
+Key features:
+- Clustering similar concepts together.
+- Reducing redundancy and selecting representative ideas.
+- Generating high-level concepts (horizontal generation).
+- Generating sub-concepts (vertical generation).
+- Clustering and selecting top clusters.
 
-It includes functions to 
-- generate thoughts, 
-- compute similarity matrices, 
-- perform clustering, and save results
-(for tasks like brainstorming, breaking down complex topics, and knowledge organization.)
+The module includes functions to:
+1. Generate thoughts and sub-thoughts.
+2. Re-cluster thoughts and select top clusters.
+3. Convert clustered thoughts into structured outputs.
+4. Save results to JSON for further use.
 
-Key Functions:
-1. 'generate_thoughts': Uses OpenAI API to generate sub-thoughts based on a given topic.
-2. 'compute_similarity_and_cluster': Computes self-attention-based similarity and clusters 
-distinct sub-thoughts.
-3. 'save_results': Saves generated thoughts and similarity matrices to files.
-4. 'generate_prompt_template': Generates a JSON prompt template for the OpenAI API call.
-5. 'main': Main function for testing and demonstrating the use of the above functions.
+Use Cases:
+- Creating structured outputs to guide conversational agents 
+(i.e., interview agents, teaching agents, tech support call-centers, etc.)
+- Knowledge organization and idea synthesis (marketing, market intelligence, etc.)
+- Research & analysis
 
-Usage:
-The module can be imported into other modules for generating and clustering sub-thoughts. 
-Each function returns data that can be handled programmatically.
+Example Usage:
+    >>> generator = ThoughtGenerator()
+    >>> result = generator.process_horizontal_thought_generation(
+            thought="embedded systems",
+            num_sub_thoughts=5,
+            num_clusters=3,
+            top_n=2
+        )
+    >>> print(result.json(indent=4))
+
+    {
+        "idea": "embedded systems",
+        "thoughts": [
+            {
+                "thought": "Real-Time Systems",
+                "description": "Focuses on designing embedded systems with real-time \
+                    performance."
+            },
+            {
+                "thought": "Hardware Integration",
+                "description": "Covers integrating hardware and software components for \
+                    reliability."
+            }
+        ]
+    }
 """
 
 import os
@@ -58,7 +80,7 @@ from utils.llm_api_utils import (
 from utils.generic_utils import save_to_json_file
 from models.llm_response_base_models import JSONResponse
 from models.thought_models import (
-    ClusterJSONModel,
+    IdeaClusterJSONModel,
     IdeaJSONModel,
     ThoughtJSONModel,
     validate_thought_batch,
@@ -71,34 +93,6 @@ from prompts.thought_generation_prompt_templates import (
 )
 
 logger = logging.getLogger(__name__)
-
-# JSON schema to validate sub-thought generation response
-# (this can potentially affect which ones are going to be saved or returned)
-LLM_RES_JSON_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "concept": {"type": "string"},
-        "sub_concepts": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string"},
-                    "description": {"type": "string"},
-                    "importance": {
-                        "type": ["string", "null"]
-                    },  # Allow optional importance
-                    "connection_to_next": {
-                        "type": ["string", "null"]
-                    },  # Allow optional connection_to_next
-                },
-                "required": ["name", "description"],  # Only these fields are required
-            },
-            "minItems": 1,
-        },
-    },
-    "required": ["concept", "sub_concepts"],
-}
 
 
 class ThoughtGenerator:
@@ -133,16 +127,24 @@ class ThoughtGenerator:
         max_tokens: int = 1056,
     ):
         """
-        Initializes the ThoughtGenerator with API details for LLM calls.
+        Initializes the ThoughtGenerator class with API client details for interacting with LLMs.
 
         Args:
-            llm_provider (str): The LLM provider to use ("openai", "claude", etc.).
-            model_id (str): The model ID to use for the LLM (e.g., "gpt-4-turbo").
-            temperature (float): Temperature setting for response creativity.
-            max_tokens (int): Maximum tokens for each response.
+            llm_provider (str): The LLM provider to use ("openai", "claude", etc.). Defaults to "openai".
+            model_id (str): The model ID to use for the LLM (e.g., "gpt-4-turbo"). Defaults to "gpt-4-turbo".
+            temperature (float): Temperature setting for response creativity. Defaults to 0.7.
+            max_tokens (int): Maximum tokens for each response. Defaults to 1056.
 
         Raises:
             ValueError: If the specified LLM provider is unsupported.
+
+        Example:
+            >>> generator = ThoughtGenerator(
+                    llm_provider="openai",
+                    model_id="gpt-4-turbo",
+                    temperature=0.7,
+                    max_tokens=1056
+                )
         """
         self.llm_provider = llm_provider
         self.model_id = model_id
@@ -159,7 +161,7 @@ class ThoughtGenerator:
 
     def create_prompt(self, prompt_template: str, **kwargs: Dict[str, str]) -> str:
         """
-        Formats a prompt using the specified template and arguments.
+        Formats a prompt using a specified template and arguments.
 
         Args:
             prompt_template (str): The template to format.
@@ -169,8 +171,18 @@ class ThoughtGenerator:
             str: The formatted prompt.
 
         Raises:
-            ValueError: If a required template placeholder is missing in the kwargs.
+            ValueError: If required template placeholders are missing in the kwargs.
+
+        Example:
+            >>> prompt = generator.create_prompt(
+                    prompt_template="Generate {num_sub_thoughts} thoughts about {idea}.",
+                    idea="artificial intelligence",
+                    num_sub_thoughts=5
+                )
+            >>> print(prompt)
+            "Generate 5 thoughts about artificial intelligence."
         """
+
         try:
             return prompt_template.format(**kwargs)
         except KeyError as e:
@@ -183,7 +195,7 @@ class ThoughtGenerator:
         prompt: str,
         temperature: float = None,
         validation_model: str = "thought_json",
-    ) -> Optional[Union[IdeaJSONModel, ThoughtJSONModel]]:
+    ) -> Optional[Union[IdeaClusterJSONModel, IdeaJSONModel, ThoughtJSONModel]]:
         """
         Call the specified LLM API (OpenAI, Claude, or LLaMA3) with the provided prompt
         and return the response as a validated ThoughtJSONResponse.
@@ -192,16 +204,26 @@ class ThoughtGenerator:
             - prompt (str): The formatted prompt to send to the LLM API.
             - temperature (float, optional): Temperature setting for this specific API call.
             If None, uses the class-level temperature.
-            - json_type (str): key value to specify which pydantic model to validate LLM response.
+            *- validation_model: key value to specify which pydantic model to validate
+            *the LLM response.
             Default to "thought_json" (ThoughtJSONModel)
 
+            *expected_response_type not an input variable becasue we expect strictly JSON response
+            *for all LLM calls from the ThoughtReader class
+
         Returns:
-            Optional[Union[IdeaJSONModel, ThoughtJSONResponse]]: The validation model to apply,
+            Optional[Union[ClusterJSONModel, IdeaJSONModel, ThoughtJSONResponse]]: The validation model to apply,
             either "idea_json" or "thought_json" model.
 
 
         Raises:
             ValueError: If the llm_provider is unsupported.
+
+        Example:
+        >>> response = generator.call_llm(
+                prompt="Generate 5 thoughts about machine learning.",
+                validation_model="idea_json"
+            )
         """
         try:
             thought_response_model = None
@@ -255,6 +277,41 @@ class ThoughtGenerator:
             )
             return None
 
+    def save_results(
+        self,
+        data: Union[ThoughtJSONModel, List[ThoughtJSONModel]],
+        json_file: Union[Path, str],
+    ):
+        """
+        Saves generated thoughts or sub-thoughts to a JSON file.
+
+        Args:
+            - data (Union[ThoughtJSONModel, List[ThoughtJSONModel]]): The data to save,
+                either a single ThoughtJSONModel instance or a list of them.
+            - json_file (Union[Path, str]): The path to save the JSON file.
+
+        Raises:
+            IOError: If an error occurs during the file saving process.
+        """
+
+        try:
+            # If data is a list, convert each ThoughtJSONResponse to a dictionary
+            if isinstance(data, list):
+                data_dict = [item.model_dump() for item in data]
+
+            else:
+                # Convert the Pydantic model to a dictionary
+                data_dict = data.model_dump()
+
+            logger.info(f"Data before saving: \n{data_dict}")
+
+            # Write the dictionary or list of dictionaries to a JSON file with indentation
+            save_to_json_file(data=data_dict, file_path=json_file)
+
+            logger.info(f"Data saved to {json_file}.")
+        except Exception as e:
+            logger.error(f"Error saving data to {json_file}: {e}")
+
     def generate_parallell_thoughts(
         self,
         thought: str,
@@ -266,10 +323,10 @@ class ThoughtGenerator:
         Generates high-level thoughts based on an idea using horizontal thought generation.
 
         Args:
-            thought (str): The main idea or theme to break down into high-level concepts.
-            prompt_template (str): The template to use for generating the prompt.
-            num_sub_thoughts (int): Number of thoughts (concepts) to generate.
-            temperature (float): Optional temperature setting for the API call.
+            - thought (str): The main idea or theme to break down into high-level concepts.
+            - prompt_template (str): The template to use for generating the prompt.
+            - num_sub_thoughts (int): Number of thoughts (concepts) to generate.
+            - temperature (float): Optional temperature setting for the API call.
 
         Returns:
             IdeaJSONModel: A validated model containing the main idea and generated
@@ -277,6 +334,27 @@ class ThoughtGenerator:
 
         Raises:
             ValueError: If the API fails to generate thoughts for the specified idea.
+
+        Example:
+            >>> idea_model = generator.generate_parallell_thoughts(
+                    thought="AI in Healthcare",
+                    prompt_template=THOUGHT_GENERATION_PROMPT,
+                    num_sub_thoughts=5
+                )
+            >>> print(idea_model.json(indent=4))
+            {
+                "idea": "AI in Healthcare",
+                "thoughts": [
+                    {
+                        "thought": "Predictive Diagnostics",
+                        "description": "AI's role in identifying diseases early based on patient data."
+                    },
+                    {
+                        "thought": "AI-Powered Surgical Tools",
+                        "description": "Enhancing precision and reducing human error during surgery."
+                    }
+                ]
+            }
         """
         prompt = self.create_prompt(
             prompt_template=prompt_template,
@@ -295,155 +373,6 @@ class ThoughtGenerator:
             )
 
         return thought_response_model
-
-    # Transform clusters to thoughts list if needed
-    def flatten_clusters_to_thoughts(
-        self, idea_data: ClusterJSONModel
-    ) -> IdeaJSONModel:
-        """
-        Transform a ClusterJSONModel into an IdeaJSONModel, flattening clusters into thoughts.
-
-        Args:
-            idea_data (ClusterJSONModel): Clustered data to be flattened into a thoughts list.
-
-        Returns:
-            IdeaJSONModel: Model containing flattened thoughts list.
-        """
-        thoughts_list = []
-
-        # Logging the clusters for verification
-        logger.debug(f"Flattening clusters: {idea_data.clusters}")
-
-        for cluster in idea_data.clusters:
-            for thought_name in cluster.thoughts:
-
-                # Logging each thought being added
-                logger.debug(
-                    f"Adding thought: {thought_name} with description: {cluster.description}"
-                )
-
-                # Append each thought with its cluster description as the thought's description
-                thoughts_list.append(
-                    ThoughtJSONModel(
-                        thought=thought_name, description=cluster.description
-                    )
-                )
-
-        return IdeaJSONModel(idea=idea_data.idea, thoughts=thoughts_list, clusters=None)
-
-    def regroup_and_pick_top_thoughts(
-        self,
-        sub_thoughts: IdeaJSONModel,
-        num_clusters: int,
-        top_n: int,
-    ) -> ClusterJSONModel:
-        """
-        Re-clusters and selects top sub-thoughts, returning an IdeaJSONModel with the top clusters.
-
-        Args:
-            sub_thoughts (IdeaJSONModel): Initial model containing thoughts.
-            num_clusters (int): Number of clusters to form.
-            top_n (int): Number of top clusters to select.
-
-        Returns:
-            IdeaJSONModel: A model with the top selected clusters or thoughts.
-        """
-        # Prepare thought data for clustering
-        thought_descriptions = [
-            {"thought": thought.thought, "description": thought.description}
-            for thought in sub_thoughts.thoughts
-        ]
-
-        # Construct the prompt for clustering and selecting the most relevant thoughts
-        prompt = self.create_prompt(
-            prompt_template=RECLUSTER_AND_PICK_TOP_CLUSTER_PROMPT,
-            idea=sub_thoughts.idea,
-            thoughts_list=thought_descriptions,
-            num_clusters=num_clusters,
-            top_n=top_n,
-        )
-
-        # Generate top clusters
-        thought_response_model = self.call_llm(
-            prompt=prompt, validation_model="cluster_json"
-        )
-
-        if thought_response_model is None:
-            raise ValueError(
-                f"Failed to regroup and pick top clusters for idea '{sub_thoughts.idea}'."
-            )
-
-        # -> into IdeaJSONModel
-        thought_response_model = self.flatten_clusters_to_thoughts(
-            thought_response_model
-        )
-
-        if thought_response_model is None:
-            raise ValueError(
-                f"Failed to transform clusters into IdeaJSONModel for idea '{sub_thoughts.idea}'."
-            )
-        return thought_response_model
-
-    def process_horizontal_thought_generation(
-        self,
-        thought: str,
-        num_sub_thoughts: int = 10,
-        num_clusters: int = 6,
-        top_n: int = 4,
-    ) -> IdeaJSONModel:
-        """
-        Orchestrates horizontal thought generation and clustering, breaking down a higher level
-        concept into lower level concepts.
-
-        This method first generates an initial set of lower level concepts using a language model (LLM).
-        It then re-clusters them into larger groups, and then selects the top N clusters,
-        returning the final set of re-clustered and selected lower level concepts.
-
-        Args:
-            -thought (str): top level concept (thought) to generate lower level concepts (sub-thoughts).
-            -num_sub_thoughts (int, optional): The number of lower level concept (sub_thoughts) to
-            generate initially. Default is 10.
-            -num_clusters (int, optional): The number of clusters to form during re-clustering.
-            Default is 6.
-            -top_n (int, optional): The number of top clusters to select after re-clustering.
-            Default is 4.
-
-        Returns:
-            IdeaJSONModel: A pydantic model instance with the final set of re-clustered and
-            selected sub-thoughts.
-
-        Example:
-            >>> generator = ThoughtGenerator()
-            >>> result = generator.process_horizontal_thought_generation("embedded systems", 5, 3, 2)
-            >>> print(result.json(indent=4))
-
-            {
-                "idea": "embedded systems",
-                "concepts": [
-                    {
-                        "concept": "embedded software development",
-                        "description": "Focuses on creating and maintaining software for embedded systems."
-                    },
-                    {
-                        "concept": "hardware design in embedded systems",
-                        "description": "Covers the physical components and circuit design for embedded systems."
-                    }
-                ]
-            }
-        """
-        init_thoughts = self.generate_parallell_thoughts(
-            thought=thought,
-            prompt_template=THOUGHT_GENERATION_PROMPT,  # use idea->thought prompt template
-            num_sub_thoughts=num_sub_thoughts,
-        )
-
-        final_thoughts = self.regroup_and_pick_top_thoughts(
-            sub_thoughts=init_thoughts,
-            num_clusters=num_clusters,
-            top_n=top_n,
-        )
-
-        return final_thoughts
 
     def generate_vertical_thoughts(
         self,
@@ -645,37 +574,230 @@ class ThoughtGenerator:
 
         return validated_idea
 
-    def save_results(
-        self,
-        data: Union[ThoughtJSONModel, List[ThoughtJSONModel]],
-        json_file: Union[Path, str],
-    ):
+    def convert_cluster_to_idea(
+        self, cluster_model: IdeaClusterJSONModel
+    ) -> IdeaJSONModel:
         """
-        Saves generated thoughts or sub-thoughts to a JSON file.
+        Converts an IdeaClusterJSONModel into an IdeaJSONModel,
+        using cluster names as thoughts and their descriptions.
+
+        Validation:
+        - Ensures the input model has valid clusters.
+        - Each cluster must have a non-empty name, description, and at least one thought.
 
         Args:
-            - data (Union[ThoughtJSONModel, List[ThoughtJSONModel]]): The data to save,
-                either a single ThoughtJSONModel instance or a list of them.
-            - json_file (Union[Path, str]): The path to save the JSON file.
+            cluster_model (IdeaClusterJSONModel): The input model containing clusters to convert.
+
+        Returns:
+            IdeaJSONModel: The converted model with cluster names mapped to thoughts and
+                        their descriptions preserved.
 
         Raises:
-            IOError: If an error occurs during the file saving process.
+            ValueError: If the input model or any cluster has invalid or missing data.
+
+        Example Output:
+            After calling 'returned_model.model_dump()':
+            {
+                "idea": "embedded software development in automotive",
+                "thoughts": [
+                    {
+                        "thought": "Real-Time Performance Requirements",
+                        "description": "Focuses on real-time performance and functional safety."
+                    },
+                    {
+                        "thought": "AI Integration in Automotive",
+                        "description": "Explores the use of AI in autonomous driving and diagnostics."
+                    }
+                ]
+            }
         """
 
+        # Ensure the input model has clusters
+        if not cluster_model.clusters or len(cluster_model.clusters) == 0:
+            raise ValueError("The input IdeaClusterJSONModel contains no clusters.")
+
+        thoughts = []
+        for cluster in cluster_model.clusters:
+            # Validate the cluster name and description
+            if not cluster.name or not cluster.description:
+                raise ValueError(
+                    f"Cluster validation failed. "
+                    f"Cluster must have a name and description. Found: {cluster}"
+                )
+
+            # Validate that the cluster contains thoughts
+            if not cluster.thoughts or len(cluster.thoughts) == 0:
+                raise ValueError(
+                    f"Cluster '{cluster.name}' must contain at least one thought."
+                )
+
+            # Convert the cluster into a ThoughtJSONModel
+            thoughts.append(
+                ThoughtJSONModel(
+                    thought=cluster.name,
+                    description=cluster.description,
+                    sub_thoughts=None,  # Sub-thoughts are not applicable here
+                )
+            )
+
+        # Return the converted IdeaJSONModel
+        return IdeaJSONModel(idea=cluster_model.idea, thoughts=thoughts)
+
+    def cluster_and_pick_top_clusters(
+        self,
+        thoughts_to_group: IdeaJSONModel,
+        num_clusters: int,
+        top_n: int,
+    ) -> IdeaClusterJSONModel:
+        """
+        Clusters thoughts and selects the top N clusters.
+
+        Args:
+            thoughts_to_group (IdeaJSONModel): The initial thoughts to group into clusters.
+            num_clusters (int): The number of clusters to form.
+            top_n (int): The number of top clusters to return.
+
+        Returns:
+            IdeaClusterJSONModel: A validated model containing the top clusters.
+
+        Raises:
+            ValueError: If clustering or selection fails.
+            ValidationError: If the clustering response does not conform to IdeaClusterJSONModel.
+
+        Example Output:
+            >>> clusters_model = generator.cluster_and_pick_top_clusters(
+                    thoughts_to_group=idea_model,
+                    num_clusters=6,
+                    top_n=4
+                )
+            >>> print(clusters_model.json(indent=4))
+            {
+                "idea": "Future of AI in Education",
+                "clusters": [
+                    {
+                        "name": "Personalized Learning",
+                        "description": "AI-driven approaches for student-centric education.",
+                        "thoughts": ["AI Tutoring", "Adaptive Learning Systems"]
+                    }
+                ]
+            }
+        """
+        # Prepare thought data for clustering
+        list_of_thoughts = [
+            {"thought": thought.thought, "description": thought.description}
+            for thought in thoughts_to_group.thoughts
+        ]
+
+        # Construct the prompt for clustering and selecting the most relevant thoughts
+        prompt = self.create_prompt(
+            prompt_template=RECLUSTER_AND_PICK_TOP_CLUSTER_PROMPT,
+            idea=thoughts_to_group.idea,
+            thoughts_list=list_of_thoughts,
+            num_clusters=num_clusters,
+            top_n=top_n,
+        )
+
+        logger.info(
+            f"Prompt for recluster and pick top_n clusters: \n{prompt}"
+        )  # TODO: debugging; remove later
+
+        # Generate top clusters
+        clusters_model = self.call_llm(
+            prompt=prompt, validation_model="cluster_json"
+        )  # expect to return a IdeaClusterJSONModel object
+
+        # Check for empty
+        if clusters_model is None:
+            raise ValueError(
+                f"Failed to regroup and pick top clusters for idea '{thoughts_to_group.idea}'."
+            )
+
         try:
-            # If data is a list, convert each ThoughtJSONResponse to a dictionary
-            if isinstance(data, list):
-                data_dict = [item.model_dump() for item in data]
+            validated_model = IdeaClusterJSONModel.model_validate(clusters_model)
+        except ValidationError as e:
+            raise ValidationError(
+                f"clusters_model validation failed for idea '{thoughts_to_group.idea}': {e}"
+            )
 
-            else:
-                # Convert the Pydantic model to a dictionary
-                data_dict = data.model_dump()
+        logger.info("clusters created and validated.")
 
-            logger.info(f"Data before saving: \n{data_dict}")
+        return clusters_model
 
-            # Write the dictionary or list of dictionaries to a JSON file with indentation
-            save_to_json_file(data=data_dict, file_path=json_file)
+    def process_horizontal_thought_generation(
+        self,
+        thought: str,
+        num_sub_thoughts: int = 10,
+        num_clusters: int = 6,
+        top_n: int = 4,
+    ) -> IdeaJSONModel:
+        """
+        Orchestrates horizontal thought generation and clustering, breaking down a higher level
+        concept into lower level concepts.
 
-            logger.info(f"Data saved to {json_file}.")
-        except Exception as e:
-            logger.error(f"Error saving data to {json_file}: {e}")
+        This method:
+        - generates an initial set of lower level concepts using a language model (LLM)
+        * -> IdeaJSONModel (pydantic model)
+
+        - then re-clusters them into larger groups, and then selects the top N clusters
+        * -> IdeaClusterJSONModel (pyd model)
+
+        - finally returns thoughts in the designated format
+        * -> back to IdeaJSONModel (pyd model)
+
+        Args:
+            -idea (str): top level concept (thought) to generate lower level concepts (sub-thoughts).
+            -num_thoughts (int, optional): The number of lower level concept (sub_thoughts) to
+            generate initially. Default is 10.
+            -num_clusters (int, optional): The number of clusters to form during re-clustering.
+            Default is 6.
+            -top_n (int, optional): The number of top clusters to select after re-clustering.
+            Default is 4.
+
+        Returns:
+            IdeaJSONModel: A pydantic model instance with the final set of re-clustered and
+            selected sub-thoughts.
+
+        Example:
+            >>> generator = ThoughtGenerator(llm_provider="openai",
+                                            model_id="gpt-4-turbo",
+                                            temperature=0.7,
+                                            max_tokens=512,)
+
+            or use default LLM parameters:
+            >>> generator = ThoughtGenerator()
+            >>> result = generator.process_horizontal_thought_generation("embedded systems", 5, 3, 2)
+            >>> print(result.json(indent=4))
+
+            {
+                "idea": "embedded systems",
+                "concepts": [
+                    {
+                        "concept": "embedded software development",
+                        "description": "Focuses on creating and maintaining software for embedded systems."
+                    },
+                    {
+                        "concept": "hardware design in embedded systems",
+                        "description": "Covers the physical components and circuit design for embedded systems."
+                    }
+                ]
+            }
+        """
+
+        # Generate initial thoughts -> pydantic model: IdeaJSONModel
+        init_thoughts_model = self.generate_parallell_thoughts(
+            thought=thought,
+            prompt_template=THOUGHT_GENERATION_PROMPT,  # use idea->thought prompt template
+            num_sub_thoughts=num_sub_thoughts,
+        )
+
+        top_clusters_model = self.cluster_and_pick_top_clusters(
+            thoughts_to_group=init_thoughts_model,
+            num_clusters=num_clusters,
+            top_n=top_n,
+        )
+
+        final_thoughts_model = self.convert_cluster_to_idea(
+            cluster_model=top_clusters_model
+        )
+
+        return final_thoughts_model
