@@ -1,31 +1,7 @@
-# Install dependencies
-
-#pip install "pinecone-client[grpc]"
-
-#pip install protobuf==3.28.2
-
-
-
-# To install without gRPC run:
-
-# pip3 install pinecone
-
-
-
-#pip install pypdf2
-
-#pip install sentence-transformers
-
-#pip install pdfplumber
-
-#pip install openai
-
-
-
 from datetime import time
 import re
-from pinecone.grpc import PineconeGRPC as Pinecone
-from pinecone import ServerlessSpec
+#from pinecone.grpc import PineconeGRPC as Pinecone
+#from pinecone import ServerlessSpec
 import PyPDF2
 import logging
 
