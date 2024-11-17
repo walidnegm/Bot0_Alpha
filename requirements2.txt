@@ -1,0 +1,12 @@
+numpy
+openaiopenai-whisper
+PyAudio
+pypdf2
+sentence-transformers
+pdfplumber
+openai
+pyttsx3
+SpeechRecognition
+pyaudio
+requests
+Levenshtein
