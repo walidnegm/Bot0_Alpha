@@ -10,7 +10,7 @@ from utils.generic_utils import read_from_json_file
 from pipelines.interview_pipeline_async import (
     interview_pipeline_async,
 )
-from src.pipelines.thought_processing_pipeline import (
+from pipelines.thought_processing_pipeline import (
     indexed_thought_processing_pipeline,
 )
 

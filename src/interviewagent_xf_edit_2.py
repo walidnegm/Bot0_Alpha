@@ -1,5 +1,54 @@
 """
-Refactored interview agent module with modular state management and dialogue handling.
+* Refactored Walid's interview agent module with modular state management and dialogue handling.
+* Still temp solution - the goal is to get the front end and back end "working."
+
+Interview Agent Module (Refactored Version)
+
+This module provides a modular implementation of an interview agent using FastAPI. 
+The primary focus is on state management and hierarchical question loading, enabling 
+personalized and adaptive interview experiences for users.
+
+Key Components:
+1. StateManager:
+   - Manages user-specific states persistently in a JSON file.
+   - Tracks user progress through a series of thoughts (main ideas) and sub-thoughts 
+   (nested subtopics).
+   - Supports state initialization, updates, and resets, ensuring smooth multi-session continuity.
+
+2. QuestionLoader:
+   - Reads and navigates hierarchical question data (thoughts and sub-thoughts) from 
+   an external data file.
+   - Determines the next question for a user based on their current progress.
+   - Implements overflow logic to transition between nested sub-thoughts and thoughts, resetting states when no questions remain.
+
+3. DialogueManager:
+   - Integrates with OpenAI's API to dynamically generate refined interview questions.
+   - Uses a structured prompt design to produce contextually relevant and concise questions.
+
+4. FastAPI Endpoints:
+   - `/get_question/{user_id}`: Retrieves the next question for a user based on their state.
+   - `/synthesize_speech`: Converts text to speech using Google Text-to-Speech (gTTS).
+   - Root and test endpoints for server health checks.
+
+Features:
+- Persistent user state management.
+- Dynamic navigation through hierarchical question data.
+- Integration of static data with dynamic AI-driven question generation.
+- Accessibility support via text-to-speech capabilities.
+- Modular and extensible architecture for adding new features.
+
+TODO: Future improvements
+Because FastAPI uses Pydantic in its own code, it works REALLY WELL with pydantic models.
+If we fully leverage Pydantic models, the StateManager can directly operate on structured data 
+in Pydantic models, eliminating unnecessary conversions like model_dump() or intermediate JSON handling. 
+
+Benefits of Pydantic Models
+- Direct Validation and Parsing: Load and validate data directly into models for consistency 
+and type safety.
+- Automatic Serialization/Deserialization: Easily serialize and deserialize models model_dump().
+- Simplified Updates: Immutable models prevent accidental state corruption 
+(or opt-in for changes with validate_assignment=True).
+- Rich Field-Level Validation
 """
 
 from pathlib import Path
@@ -22,13 +71,29 @@ from dotenv import load_dotenv
 import uvicorn
 
 # Import internal modules
+from utils.generic_utils import read_from_json_file, save_to_json_file
 from thought_generation.thought_reader import IndexedThoughtReader
-from config import OPENAI_INDEXED_MODELS_DIR, INTERVIEW_STATES_FILE
+from project_config import (
+    CLAUDE_INDEXED_MODELS_DIR,
+    OPENAI_INDEXED_MODELS_DIR,
+    INTERVIEW_STATES_FILE,
+)
 
 # Set up logging
 logger = logging.getLogger(__name__)
 
+# *Data source:
+source_file_list = [
+    "array_of_thoughts_output_with_index_embedded_software_development_claude.json",
+    "array_of_thoughts_output_with_index_embedded_software_development_in_aerospace_claude.json",
+    "array_of_thoughts_output_with_index_embedded_software_development_in_automotive_claude.json",
+]
+
+array_of_thoughts_file_name = source_file_list[0]  #! pick 0, 1, 2
+
 # Initialize FastAPI app
+# - Sets up the FastAPI server with CORS middleware to allow cross-origin requests.
+# - Defines routes for fetching questions, synthesizing speech, and performing health checks.
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -41,7 +106,7 @@ app.add_middleware(
 
 # ================== Helper Functions ==================
 def get_openai_api_key():
-    """Load the OpenAI API key from environment or configuration file."""
+    """Load the OpenAI API key from environment (xf) or configuration file (walid)."""
     current_user = getpass.getuser()
     xf_username = "xzhan"
 
@@ -64,7 +129,36 @@ def get_openai_api_key():
 
 # ================== Core Classes ==================
 class StateManager:
-    """Manages user states for the interview bot."""
+    """
+    Manages user states for the interview bot.
+    Automatically persists states to a file after every modification.
+
+    Attributes:
+        - storage_path (str): The file path where states are persisted as JSON.
+        - states (dict): A dictionary mapping user IDs to their respective UserState models.
+
+    *Key methods:
+        - `get_state`: Retrieves or initializes a user's state.
+        - `update_state`: Updates user states with new data and timestamps.
+        - `reset_state`: Deletes a user's state from the file.
+
+    !Sample Interview State File Output:
+    {
+        "user_123": {
+            "thought_index": 1,
+            "sub_thought_index": 2,
+            "current_question": "What strategies have you implemented to improve team communication?",
+            "last_updated": "2024-11-17T12:34:56.789Z"
+        },
+        "user_456": {
+            "thought_index": 0,
+            "sub_thought_index": 0,
+            "current_question": null,
+            "last_updated": "2024-11-16T10:20:30.456Z"
+        }
+    }
+
+    """
 
     def __init__(self, storage_path: Optional[str] = None):
         self.storage_path = storage_path or INTERVIEW_STATES_FILE
@@ -108,14 +202,26 @@ class StateManager:
 
 
 class QuestionLoader:
-    """Loads and manages questions from hierarchical data."""
+    """
+    Loads and manages questions from hierarchical data
+
+    Key method:
+    'get_next_question': Determines the next question for a user based on their current state.
+    Handles progression through nested thoughts and resets the state when no more questions
+    are available.
+    """
 
     def __init__(self, data_file: Path):
         self.data_source = self._load_data(data_file)
 
     def _load_data(self, data_file: Path):
         reader = IndexedThoughtReader(data_file)
-        return reader.dump_all()
+
+        output_data = reader.dump_all()
+
+        logger.info(f"idea model output: {output_data}")
+
+        return output_data
 
     def get_next_question(self, user_id: str, state_manager: StateManager):
         """Fetch the next question based on the user's current state."""
@@ -149,7 +255,10 @@ class QuestionLoader:
 
 
 class DialogueManager:
-    """Handles interactions with OpenAI to generate questions."""
+    """
+    Uses OpenAI’s API to dynamically generate interview questions based on provided details.
+
+    """
 
     def __init__(self):
         api_key = get_openai_api_key()
@@ -197,8 +306,8 @@ async def get_question_async(user_id: str):
     try:
         state_manager = StateManager()
         question_loader = QuestionLoader(
-            data_file=Path(OPENAI_INDEXED_MODELS_DIR / "thoughts.json")
-        )
+            data_file=Path(CLAUDE_INDEXED_MODELS_DIR / array_of_thoughts_file_name)
+        )  # *This is where the source data is loaded in
         dialogue_manager = DialogueManager()
 
         question_data = question_loader.get_next_question(user_id, state_manager)

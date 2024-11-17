@@ -27,11 +27,11 @@ async def interview_pipeline_async(sub_thought_file, memory_file):
     # Step 2. Instantiate Facilitator Agent Async clss
     agent = FacilitatorAgentAsync(data)
 
-    for sub_concept in agent.sub_concepts:
+    for sub_concept in agent.sub_thoughts:
         sub_concept_name = sub_concept["name"]
         sub_concept_description = sub_concept.get("description", "")
 
-        question = await agent.generate_question(
+        question = await agent.generate_question_async(
             sub_concept_name, sub_concept_description
         )
         logger.info(f"Question for '{sub_concept_name}': {question}")

@@ -32,13 +32,15 @@ from anthropic import (
 # Import internal modules
 from agents.evaluator_agent_async import EvaluatorAgentAsync
 from agents.state_transition_machine import TopicExhaustionService
+from agents.state_management import StateManager
+from models.llm_response_base_models import TextResponse
+from models.indexed_thought_models import IndexedSubThoughtJSONModel
 from utils.llm_api_utils import get_claude_api_key, get_openai_api_key
 from utils.llm_api_utils_async import (
     call_openai_api_async,
     call_claude_api_async,
     call_llama3_async,
 )
-from models.llm_response_base_models import TextResponse
 
 
 # Setup logger
@@ -49,8 +51,11 @@ class FacilitatorAgentAsync:
     """
     FacilitatorAgentAsync Class
 
-    This class facilitates an interactive educational conversation with a user about a main concept and its sub-concepts.
-    It generates questions, evaluates user responses, and transitions to the next sub-concept when the current topic is exhausted.
+    This class facilitates an interactive educational conversation with a user about
+    a main concept and its sub-concepts.
+
+    It generates questions, evaluates user responses, and transitions to the next sub-concept
+    when the current topic is exhausted.
 
     Attributes:
         -concept (str): The main concept to discuss.
@@ -69,7 +74,9 @@ class FacilitatorAgentAsync:
 
     def __init__(
         self,
-        data: Dict[str, Any],
+        user_id: str,
+        idea_data: Dict[str, Any],
+        state_manager: StateManager,
         llm_provider: str = "openai",
         model_id: str = "gpt-4-turbo",
         temperature: float = 0.3,
@@ -90,16 +97,20 @@ class FacilitatorAgentAsync:
         Raises:
             ValueError: If an unsupported LLM provider is specified and no client is provided.
         """
-        self.concept = data["concept"]
-        self.sub_concepts = data["sub_concepts"]
+        self.user_id = user_id
+        self.idea_data = idea_data
+        self.state_manager = state_manager
         self.llm_provider = llm_provider
         self.model_id = model_id
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.client = client
+        self.client = client or self._initialize_client()
 
         self.conversation_memory = []
-        self.current_sub_concept_index = 0
+
+        # Initialize evaluation and transition agents (placeholders for modularity)
+        self.evaluation_agent = EvaluatorAgentAsync()
+        self.topic_exhaustion_service = TopicExhaustionService()
 
         # Log instantiation
         logger.info(
@@ -107,150 +118,131 @@ class FacilitatorAgentAsync:
             f"temperature {temperature}, max_tokens {max_tokens}."
         )
 
-        # Initialize API client
-        if self.llm_provider == "openai" and not self.client:
+    def _initialize_client(self):
+        """Initialize the LLM client based on the provider."""
+        if self.llm_provider == "openai":
             api_key = get_openai_api_key()
-            self.client = OpenAI(api_key=api_key)
-
-            logger.info(f"{self.llm_provider} API instantiated.")
-
-        elif self.llm_provider == "claude" and not self.client:
+            return OpenAI(api_key=api_key)
+        elif self.llm_provider == "claude":
             api_key = get_claude_api_key()
-            self.client = Anthropic(api_key=api_key)
+            return Anthropic(api_key=api_key)
+        else:
+            raise ValueError(f"Unsupported LLM provider: {self.llm_provider}")
 
-            logger.info(f"{self.llm_provider} API instantiated.")
+    async def begin_conversation_async(self) -> None:
+        """Start the conversation by retrieving or initializing user state."""
+        state = self.state_manager.get_state(self.user_id)
+        current_thought_index = state.get("thought_index", 0)
+        current_sub_thought_index = state.get("sub_thought_index", 0)
 
-        elif self.llm_provider == "llama3":
-            logger.info("Using LLaMA3 model.")
-        elif not self.client:
-            raise ValueError(f"Unsupported model: {self.llm_provider}")
+        if current_thought_index >= len(self.idea_data.thoughts or []):
+            print("All thoughts have been discussed. Thank you!")
+            return
 
-        # Initialize EvaluationAgent and TopicExhaustionService
-        self.evaluation_agent = EvaluatorAgentAsync()
-        self.topic_exhaustion_service = TopicExhaustionService()
+        print(f"Today, let's discuss {self.idea_data.idea}.")
+        await self.discuss_next_sub_thought_async(
+            current_thought_index, current_sub_thought_index
+        )
 
-    async def start_conversation(self) -> None:
+    async def discuss_next_sub_thought_async(
+        self, thought_index: int, sub_thought_index: int
+    ):
         """
-        Start the conversation by introducing the main concept and initiating the discussion of sub-concepts.
-        """
-        print(f"Today, we'll discuss about {self.concept}.")
-        await self.discuss_next_sub_concept()
-
-    async def discuss_next_sub_concept(self) -> None:
-        """
-        Manage the sequential discussion of sub-concepts, transitioning when a topic is exhausted.
-        """
-        while self.current_sub_concept_index < len(self.sub_concepts):
-            sub_concept: Dict[str, Any] = self.sub_concepts[
-                self.current_sub_concept_index
-            ]
-            await self.handle_focused_discussion(sub_concept)
-            self.current_sub_concept_index += 1
-
-        print("We've covered all the topics. Thank you for the discussion!")
-
-    async def handle_focused_discussion(self, sub_concept: Dict[str, Any]) -> None:
-        """
-        Conduct a focused, multi-turn discussion on a specific sub-concept, transitioning when the topic is exhausted.
+        Discuss the next sub-thought based on the current user state.
 
         Args:
-            sub_concept (Dict[str, Any]): A dictionary containing 'name' and 'description' of the sub-concept.
+            thought_index (int): Current thought index.
+            sub_thought_index (int): Current sub-thought index within the thought.
         """
-        exchanges: List[Dict[str, str]] = []
-        sub_concept_name: str = sub_concept["name"]
-        sub_concept_description: str = sub_concept["description"]
+        thoughts = self.idea_data.thoughts or []
+        if thought_index >= len(thoughts):
+            print("We've covered all the main thoughts. Thank you for the discussion!")
+            return
 
-        print(f"\nLet's talk about {sub_concept_name}.")
-        question: str = await self.generate_question(
-            sub_concept_name, sub_concept_description
+        current_thought = thoughts[thought_index]
+        sub_thoughts = current_thought.sub_thoughts or []
+
+        while sub_thought_index < len(sub_thoughts):
+            current_sub_thought = sub_thoughts[sub_thought_index]
+            await self.handle_focused_discussion_async(
+                current_thought, current_sub_thought
+            )
+
+            sub_thought_index += 1
+            self.state_manager.update_state(
+                self.user_id,
+                thought_index=thought_index,
+                sub_thought_index=sub_thought_index,
+            )
+
+        thought_index += 1
+        sub_thought_index = 0
+        self.state_manager.update_state(
+            self.user_id,
+            thought_index=thought_index,
+            sub_thought_index=sub_thought_index,
+        )
+        await self.discuss_next_sub_thought_async(thought_index, sub_thought_index)
+
+    async def handle_focused_discussion_async(self, thought, sub_thought):
+        """
+        Conduct a focused discussion on a sub-thought.
+
+        Args:
+            thought (IndexedThoughtJSONModel): Current thought being discussed.
+            sub_thought (IndexedSubThoughtJSONModel): Current sub-thought.
+        """
+        print(f"\nLet's talk about {sub_thought.name}.")
+        question = await self.generate_question_async(
+            sub_thought.name, sub_thought.description
         )
         print(f"Agent: {question}")
-        exchange: Dict[str, str] = {"agent": question}
 
         self.topic_exhaustion_service.reset()
-
         while True:
-            user_response: str = await aioconsole.ainput("You: ")
-            exchange["user"] = user_response
-
-            # Evaluate user's response
+            user_response = await aioconsole.ainput("You: ")
             try:
-                evaluation: Dict[str, Any] = await self.evaluation_agent.evaluate_async(
-                    correct_answer=sub_concept_description, user_response=user_response
+                evaluation = await self.evaluation_agent.evaluate_async(
+                    correct_answer=sub_thought.description, user_response=user_response
                 )
             except Exception as e:
                 logger.error(f"Error during evaluation: {e}")
-                print(
-                    "An error occurred during evaluation. Let's move on to the next topic."
-                )
+                print("An error occurred during evaluation. Let's move on.")
                 break
 
-            # Check for topic exhaustion and get scores
             exhaustion_result = self.topic_exhaustion_service.is_topic_exhausted(
                 question, user_response
             )
-
             if exhaustion_result["is_exhausted"]:
                 print(
-                    f"Agent: Great! We've covered the topic of {sub_concept_name} sufficiently "
-                    f"(Redundancy={exhaustion_result['redundancy_score']:.2f}, "
-                    f"Coverage={exhaustion_result['coverage_score']:.2f}, "
-                    f"New Info={exhaustion_result['new_info_score']:.2f})."
+                    f"Agent: We've covered {sub_thought.name} sufficiently "
+                    f"(Redundancy={exhaustion_result['redundancy_score']:.2f})."
                 )
-                exchanges.append(exchange)
                 break
 
             if evaluation["is_correct"] or evaluation["should_move_on"]:
-                agent_reply: str = await self.generate_conciliatory_reply(evaluation)
+                agent_reply = await self.generate_conciliatory_reply_async(evaluation)
                 print(f"Agent: {agent_reply}")
-                exchanges.append(exchange)
                 break
             else:
-                agent_reply: str = await self.generate_followup_question(evaluation)
-                print(f"Agent: {agent_reply}")
-                exchanges.append(exchange)
-                exchange = {"agent": agent_reply}
+                followup_question = await self.generate_followup_question_async(
+                    evaluation
+                )
+                print(f"Agent: {followup_question}")
 
-        self.conversation_memory.append(
-            {"sub_concept": sub_concept_name, "exchanges": exchanges}
+    async def generate_question_async(self, name, description=None):
+        """Generate a discussion question about the sub-thought."""
+        prompt = (
+            f"Based on the description: {description}, generate an open-ended question about '{name}'."
+            if description
+            else f"Generate an open-ended question about '{name}'."
         )
-
-    async def generate_question(
-        self,
-        sub_concept_name: str,
-        sub_concept_description: Optional[str] = None,
-        llm_provider: Optional[str] = None,
-    ) -> str:
-        # Generate an open-ended question about the sub-concept
-        if sub_concept_description:
-            prompt: str = (
-                f"Based on the following description:\n\n{sub_concept_description}\n\n"
-                f"Generate one open-ended question that encourages discussion about this concept. "
-                f"Provide only the question and no additional text."
-            )
-        else:
-            prompt: str = (
-                f"Generate one clear, open-ended question about '{sub_concept_name}'. "
-                f"The question should encourage discussion and cannot be answered with a simple 'yes' or 'no'. "
-                f"Provide only the question and no additional text."
-            )
-
-        if llm_provider is None:
-            llm_provider = self.llm_provider
-
-        try:
-            response: TextResponse = await self.call_llm(
-                prompt=prompt,
-                llm_provider=llm_provider,
-                expected_res_type="str",
-            )
-        except Exception as e:
-            logger.error(f"Error generating question: {e}")
-            return "Could you tell me more about this topic?"
-
+        response = await self.call_llm_async(prompt, self.llm_provider, "str")
         return response.content.strip()
 
-    async def generate_conciliatory_reply(self, evaluation: Dict[str, Any]) -> str:
+    async def generate_conciliatory_reply_async(
+        self, evaluation: Dict[str, Any]
+    ) -> str:
         # Generate a conciliatory reply based on the evaluation
         return (
             "That's correct! Great job."
@@ -258,7 +250,7 @@ class FacilitatorAgentAsync:
             else "Thank you for your thoughts. Let's move on to the next topic."
         )
 
-    async def generate_followup_question(
+    async def generate_followup_question_async(
         self,
         evaluation: Dict[str, Any],
         llm_provider: Optional[str] = None,
@@ -272,7 +264,7 @@ class FacilitatorAgentAsync:
             llm_provider = self.llm_provider
 
         try:
-            response: TextResponse = await self.call_llm(
+            response: TextResponse = await self.call_llm_async(
                 prompt=prompt,
                 llm_provider=llm_provider,
                 expected_res_type="str",
@@ -283,11 +275,12 @@ class FacilitatorAgentAsync:
 
         return response.content.strip()
 
-    async def call_llm(
+    async def call_llm_async(
         self,
         prompt: str,
         llm_provider: str,
-        expected_res_type: str,
+        expected_res_type: str = "str",
+        # Default to str; the response is expected to be just a question, which is just text/str
     ) -> TextResponse:
         # Route the API call to the specified LLM provider and return the response
         try:
@@ -324,7 +317,7 @@ class FacilitatorAgentAsync:
             logger.error(f"Error calling LLM '{llm_provider}': {e}")
             raise
 
-    async def save_conversation_memory(
+    async def persist_to_memory(
         self, memory_json_file: str = "conversation_history.json"
     ) -> None:
         # Save the conversation memory to a JSON file
@@ -348,8 +341,8 @@ async def main():
 
     agent = FacilitatorAgentAsync(data)
 
-    await agent.start_conversation()
-    await agent.save_conversation_memory()
+    await agent.begin_conversation_async()
+    await agent.persist_to_memory()
 
 
 # Run the main function

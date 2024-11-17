@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 
 # from internal modules (ThoughtReader, data folder locations)
 from src.thought_generation.thought_reader import IndexedThoughtReader
-from src.config import (
+from src.project_config import (
     OPENAI_INDEXED_MODELS_DIR,
     CLAUDE_INDEXED_MODELS_DIR,
     INTERVIEW_STATES_FILE,
