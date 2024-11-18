@@ -82,17 +82,18 @@ class AudioCapture:
 
 
 class Transcriber:
-    def __init__(self, audio_capture, llm_client):
+    def __init__(self, audio_capture, llmClient):
         self.audio_capture = audio_capture
         self.recognizer = sr.Recognizer()
         self.silence_start_time = None
-        self.audio_segments = []
+        self.llmClient = llmClient
+        self.base_model = whisper.load_model("base")
         self.tts_queue = []  # List to manage TTS queue
         self.tts_lock = threading.Lock()  # Lock for TTS queue access
-        self.vector_embedding = vector_search
-        self.llm = llm_client
+        self.vector_embedding = vector_search()
+        self.vector_embedding.load_embeddings() 
 
-    def is_silent(self, media_segment):
+    def is_silent(self, audio_segment):
         audio_data = np.frombuffer(audio_segment, dtype=np.int16)
         volume = np.max(audio_data).mean()
         #print("Volume:", volume)
@@ -147,6 +148,45 @@ class Transcriber:
                     audio_segments.clear()
                     self.silence_start_time = None  # Reset silence timer
 
+    def transcribe_audio(self):
+        print("Transcription started.")
+        audio_segments = []  # Initialize outside the loop to accumulate audio
+        while True:
+            time.sleep(0.1)  # Short sleep to avoid busy waiting
+            with self.audio_capture.lock:
+                if self.audio_capture.audio_data:
+                    audio_segments.extend(self.audio_capture.audio_data)
+                    self.audio_capture.audio_data.clear()  # Clear the audio data after copying
+
+            # Check if the last segment is silent
+            if audio_segments: 
+                last_segment = audio_segments[-1]
+                if self.is_silent(last_segment):
+                    if self.silence_start_time is None:
+                        self.silence_start_time = time.time()
+                else:
+                    self.silence_start_time = None
+            # Check if silence duration is sufficient
+            
+            if self.silence_start_time is not None and (time.time() - self.silence_start_time) >= PAUSE_DURATION:
+                combined_audio = b''.join(audio_segments)  # Combine audio segments
+                audio_data = sr.AudioData(combined_audio, RATE, 2)
+                try:
+                    text = self.recognizer.recognize_google(audio_data)
+                    print(f"Recognized text: {text}")
+
+                    # Corrected if condition with colon at the end
+                    if WAKE_UP_WORD in text.lower():
+                        self.process_command(text)
+
+                except sr.UnknownValueError:
+                    print("Could not understand audio")
+                except sr.RequestError as e:
+                    print(f"Could not request results from Google Speech Recognition service; {e}")
+               # Clear the buffer after processing
+                    audio_segments.clear()
+                    self.silence_start_time = None  # Reset silence timer
+
     def process_command(self, command):
         command = command.lower()
         if WAKE_UP_WORD in command:
@@ -155,7 +195,8 @@ class Transcriber:
                 print (f"Proessing command: {command_after_wake_up}")
                 with self.tts_lock:
                     self.tts_queue.append("okay")
-                results = self.vector_embedding.vector_search(command_after_wake_up)
+                results = self.vector_embedding.search_vector_store(command_after_wake_up)
+                response = self.llmClient.generate.completion_llmacpp(command_after_wake_up, results)
 
                 if response:
                     print("Assistant response:", response)

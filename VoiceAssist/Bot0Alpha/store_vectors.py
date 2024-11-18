@@ -45,7 +45,7 @@ def extract_text_from_pdf(pdf_path):
     return texts
 
 if __name__ == "__main__":
-    file_path = "/root/backend/MY23_Prius_OM_Excerpt_for_Driving_Support_Systems_D4_ML_0208.pdf"  # Replace with your actual file path
+    file_path = "MY23_Prius_OM_Excerpt_for_Driving_Support_Systems_D4_ML_0208.pdf"  # Replace with your actual file path
 
 
     # 1. Specify preferred dimensions

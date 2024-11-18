@@ -42,7 +42,7 @@ else:
 client = openai
 
 # Load JSON content from the file
-json_file_path = "/root/thoughtgeneration/Bot0_Release1/backend/input_output/thought_generation/claude_output/array_of_thoughts_output_claude_embedded_software_development.json"
+json_file_path = "thought_generation/claude_output/array_of_thoughts_output_claude_embedded_software_development.json"
 try:
     with open(json_file_path, "r") as json_file:
         json_content = json.load(json_file)

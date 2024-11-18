@@ -1,8 +1,6 @@
 # search_vectors.py
 # pip install sentence-transformers
 
-
-
 import numpy as np
 import pickle
 from common_modules import *
@@ -27,14 +25,13 @@ class vector_search:
         self.docs_embeddings = None
         self.model = None
 
-
     def load_embeddings(self):
 
         # 1. Specify preferred dimensions
 
         dimensions = 512
         # 2. Load model
-        self.model = SentenceTransformer("mixedbread-ai/mxbi-embed-large-v1", truncate_dim=dimensions)
+        self.model = SentenceTransformer("mixedbread-ai/mxbai-embed-large-v1", truncate_dim=dimensions)
         # Load the docs and embeddings from the file
 
         with open(FILE_DOCS_AND_EMBEDDINGS, "rb") as f:
