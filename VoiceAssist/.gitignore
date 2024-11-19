@@ -16,6 +16,8 @@ config.ini
 
 /uploads
 
+/venvwin
+
 # testing
 /coverage
 
