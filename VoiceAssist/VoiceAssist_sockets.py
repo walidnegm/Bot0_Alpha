@@ -158,8 +158,9 @@ async def websocket_endpoint(websocket: WebSocket):
     retry_count = 0
     
     # Define buffer sizes (in bytes)
-    min_process_size = RATE * CHANNELS * SAMPLE_WIDTH * 4  # 2 seconds of audio
-    max_buffer_size = RATE * CHANNELS * SAMPLE_WIDTH * 5   # 5 seconds of audio
+   # Increase buffer sizes (in bytes)
+    min_process_size = RATE * CHANNELS * SAMPLE_WIDTH * 8  # 4 seconds -> 8 seconds
+    max_buffer_size = RATE * CHANNELS * SAMPLE_WIDTH * 12 # 5 seconds -> 10 seconds
     
     try:
         while True:
@@ -176,7 +177,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 # Add new data to buffer
                 audio_buffer.extend(data)
                 current_size = len(audio_buffer)
-                #logging.debug(f"Buffer size: {current_size}/{max_buffer_size} bytes")
+                logging.debug(f"Buffer size: {current_size}/{max_buffer_size} bytes")
 
                 # Process when we have enough data
                 if current_size >= min_process_size:
@@ -191,13 +192,13 @@ async def websocket_endpoint(websocket: WebSocket):
                                 "response": response
                             })
                             # Keep last 1 second for overlap
-                            overlap_size = int(RATE * CHANNELS * SAMPLE_WIDTH * 2)
+                            overlap_size = int(RATE * CHANNELS * SAMPLE_WIDTH * 1)
                             audio_buffer = audio_buffer[-overlap_size:]
                             logging.debug(f"Successful transcription. Keeping {len(audio_buffer)} bytes for overlap")
                         else:
                             # If buffer is too large, keep last 3 seconds
                             if current_size > max_buffer_size:
-                                keep_size = RATE * CHANNELS * SAMPLE_WIDTH * 8
+                                keep_size = int(RATE * CHANNELS * SAMPLE_WIDTH * 12)  # Keep last 12 seconds
                                 audio_buffer = audio_buffer[-keep_size:]
                                 logging.debug(f"Buffer too large. Trimmed to {len(audio_buffer)} bytes")
 

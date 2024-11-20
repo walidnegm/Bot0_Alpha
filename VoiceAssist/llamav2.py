@@ -17,7 +17,7 @@ class LLamaClientNV:
                 You will be provided a querey and its results.
                 Use your understanding to create an appropriate response summary based on the results for the query.
                 The response has to be in english and replace bullet points or syntax with approprirate words.
-                The response must contain 40 words or less characters.
+                The response must contain 80 words or less characters.
                 The response must not contain the text either from the query or results."""
             }
         ]

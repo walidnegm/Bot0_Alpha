@@ -142,7 +142,7 @@ class Transcriber:
             tts_engine.setProperty('voice', voices[1].id)  # Female voice (index 1)
             tts_engine.say(response)
             tts_engine.runAndWait()
-            logging.debug(f"Voiced response: {response}")
+            #logging.debug(f"Voiced response: {response}")
         except Exception as e:
             logging.error(f"Error voicing response: {e}", exc_info=True)
             
@@ -158,8 +158,9 @@ async def websocket_endpoint(websocket: WebSocket):
     retry_count = 0
     
     # Define buffer sizes (in bytes)
-    min_process_size = RATE * CHANNELS * SAMPLE_WIDTH * 4  # 2 seconds of audio
-    max_buffer_size = RATE * CHANNELS * SAMPLE_WIDTH * 5   # 5 seconds of audio
+   # Increase buffer sizes (in bytes)
+    min_process_size = RATE * CHANNELS * SAMPLE_WIDTH * 16  # 4 seconds -> 8 seconds
+    max_buffer_size = RATE * CHANNELS * SAMPLE_WIDTH * 20 # 5 seconds -> 10 seconds
     
     try:
         while True:
@@ -181,7 +182,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 # Process when we have enough data
                 if current_size >= min_process_size:
                     try:
-                        logging.debug(f"Processing audio buffer of size: {current_size}")
+                        #logging.debug(f"Processing audio buffer of size: {current_size}")
                         transcription = transcriber.transcribe_audio_bytes(bytes(audio_buffer))
                         
                         if transcription:

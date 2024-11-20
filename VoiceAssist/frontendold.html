@@ -1,144 +1,64 @@
-<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Audio Streaming Frontend</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            text-align: center;
-            background-color: #f5f5f5;
-        }
-
-        button {
-            font-size: 1.2rem;
-            padding: 15px 30px;
-            margin: 10px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 600;
-        }
-
-        #openSession {
-            background-color: #2ecc71;
-            color: white;
-        }
-
-        #openSession:hover {
-            background-color: #27ae60;
-        }
-
-        #closeSession {
-            background-color: #e74c3c;
-            color: white;
-        }
-
-        #closeSession:hover {
-            background-color: #c0392b;
-        }
-
-        button:disabled {
-            background-color: #bdc3c7;
-            cursor: not-allowed;
-        }
-
-        #status {
-            margin-top: 30px;
-            font-size: 1.2rem;
-            color: #34495e;
-            padding: 15px;
-            border-radius: 6px;
-            background-color: white;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-    </style>
 </head>
 <body>
-    <h1>MyCar: ManualMind</h1>
-    <h2>AI Manual Assistant and Vehicle Knowledge</h2>
+    <h1>Audio Streaming to WebSocket Server</h1>
     <button id="openSession">Open Session</button>
     <button id="closeSession" disabled>Close Session</button>
     <div id="status">Status: Session not opened</div>
-
     <script>
         const openSessionBtn = document.getElementById('openSession');
         const closeSessionBtn = document.getElementById('closeSession');
         const statusDiv = document.getElementById('status');
-        
+
         let audioContext;
         let socket;
         let stream;
         const CHUNK_SIZE = 4096;
         let isRecording = false;
-
-        function cleanupSession() {
-            isRecording = false;
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
-            }
-            if (audioContext) {
-                audioContext.close();
-                audioContext = null;
-            }
-            if (socket) {
-                socket.close();
-                socket = null;
-            }
-            openSessionBtn.disabled = false;
-            closeSessionBtn.disabled = true;
-            statusDiv.textContent = 'Status: Session closed';
-        }
-
         async function startAudioProcessing() {
             try {
-                await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second setup delay
                 stream = await navigator.mediaDevices.getUserMedia({ 
                     audio: {
                         channelCount: 1,
                         sampleRate: 16000
                     }
                 });
-                
+
                 audioContext = new AudioContext({ sampleRate: 16000 });
                 const source = audioContext.createMediaStreamSource(stream);
                 const processor = audioContext.createScriptProcessor(CHUNK_SIZE / 2, 1, 1);
-
                 processor.onaudioprocess = (e) => {
                     if (socket?.readyState === WebSocket.OPEN && isRecording) {
                         const inputData = e.inputBuffer.getChannelData(0);
                         const samples = new Int16Array(inputData.length);
-                        
+
                         for (let i = 0; i < inputData.length; i++) {
                             samples[i] = Math.max(-32768, Math.min(32767, inputData[i] * 32768));
                         }
                         const chunk = new Int16Array(CHUNK_SIZE / 2);
                         chunk.set(samples);
-                        
+
+                        console.log(Sending chunk of ${chunk.buffer.byteLength} bytes);
                         socket.send(chunk.buffer);
                     }
                 };
-
                 source.connect(processor);
                 processor.connect(audioContext.destination);
-                
+
                 return true;
             } catch (err) {
                 console.error('Audio setup error:', err);
                 return false;
             }
         }
-
         function openWebSocket() {
             socket = new WebSocket('ws://127.0.0.1:8000/listen/');
             socket.binaryType = 'arraybuffer';
-            
+
             socket.onopen = async () => {
                 console.log("WebSocket opened");
                 if (await startAudioProcessing()) {
@@ -150,16 +70,18 @@
                     socket.close();
                 }
             };
-
-            socket.onclose = cleanupSession;
+            socket.onclose = () => {
+                isRecording = false;
+                statusDiv.textContent = 'Status: Session closed';
+                stream?.getTracks().forEach(track => track.stop());
+                audioContext?.close();
+                openSessionBtn.disabled = false;
+                closeSessionBtn.disabled = true;
+            };
         }
-
-        openSessionBtn.addEventListener('click', () => {
-            cleanupSession(); // Clean up existing session
-            setTimeout(() => openWebSocket(), 500); // Wait before opening new session
-        });
-
-        closeSessionBtn.addEventListener('click', cleanupSession);
+        openSessionBtn.addEventListener('click', openWebSocket);
+        closeSessionBtn.addEventListener('click', () => socket?.close());
+        window.addEventListener('load', openWebSocket);
     </script>
 </body>
 </html>
