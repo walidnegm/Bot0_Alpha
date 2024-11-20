@@ -1,29 +1,23 @@
-from pydub import AudioSegment
-import simpleaudio as sa
+import sounddevice as sd
+import soundfile as sf
+import sys
 
-# Load the audio file
-audio_file = "debug_audio.wav"
+def play_wav(filename):
+    # Read the wave file
+    print(f"Playing {filename}")
+    data, samplerate = sf.read(filename)
+    print(f"Sample rate: {samplerate} Hz")
+    print(f"Channels: {data.shape[1] if len(data.shape) > 1 else 1}")
+    print(f"Length: {len(data)/samplerate:.2f} seconds")
+    
+    # Play the file
+    sd.play(data, samplerate)
+    sd.wait()  # Wait until file is done playing
 
-# Convert to 16kHz mono if necessary
-def convert_audio(input_file, output_file):
-    sound = AudioSegment.from_wav(input_file)
-    sound = sound.set_channels(1)  # Mono audio
-    sound = sound.set_frame_rate(16000)  # 16kHz sample rate
-    sound.export(output_file, format="wav")
-    print(f"Audio converted and saved as {output_file}")
-
-# Convert audio if needed
-converted_file = "test_audio_16kHz_mono.wav"
-convert_audio(audio_file, converted_file)
-
-# Load the converted audio file
-audio = AudioSegment.from_wav(converted_file)
-
-# Play the audio using simpleaudio
-def play_audio(audio_file):
-    # Play the audio
-    wave_obj = sa.WaveObject.from_wave_file(audio_file)
-    play_obj = wave_obj.play()
-    play_obj.wait_done()  # Wait for the audio to finish playing
-
-play_audio(converted_file)
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        filename = sys.argv[1]
+    else:
+        filename = "debug_audio.wav"  # default file
+    
+    play_wav(filename)

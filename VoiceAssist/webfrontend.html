@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Streaming Frontend</title>
+</head>
+<body>
+    <h1>Audio Streaming to WebSocket Server</h1>
+    <button id="startRecording">Start Recording</button>
+    <button id="stopRecording" disabled>Stop Recording</button>
+    <div id="status">Status: Not recording</div>
+
+    <script>
+        const startButton = document.getElementById('startRecording');
+        const stopButton = document.getElementById('stopRecording');
+        const statusDiv = document.getElementById('status');
+
+        let mediaRecorder;
+        let socket;
+        let stream;
+
+        startButton.addEventListener('click', async () => {
+            try {
+                // Request audio access from the user
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+                // Open WebSocket connection
+                socket = new WebSocket('ws://127.0.0.1:8000/listen/');
+                socket.binaryType = 'arraybuffer';
+
+                // Handle WebSocket open event
+                socket.onopen = () => {
+                    statusDiv.textContent = 'Status: Recording...';
+                    startButton.disabled = true;
+                    stopButton.disabled = false;
+                    mediaRecorder.start(100); // Set timeslice to 100ms to create smaller chunks
+                };
+
+                // Listen for data available from media recorder
+                mediaRecorder.addEventListener('dataavailable', event => {
+                    if (socket.readyState === WebSocket.OPEN && event.data.size > 0) {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                            const audioData = reader.result;
+                            socket.send(audioData);
+                        };
+                        reader.readAsArrayBuffer(event.data);
+                    }
+                });
+
+                mediaRecorder.addEventListener('stop', () => {
+                    statusDiv.textContent = 'Status: Stopped recording';
+                    startButton.disabled = false;
+                    stopButton.disabled = true;
+                    stream.getTracks().forEach(track => track.stop());
+                    if (socket && socket.readyState === WebSocket.OPEN) {
+                        socket.close();
+                    }
+                });
+
+                // Handle WebSocket errors and connection closure
+                socket.onclose = () => {
+                    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                        mediaRecorder.stop();
+                    }
+                    statusDiv.textContent = 'Status: WebSocket connection closed';
+                    startButton.disabled = false;
+                    stopButton.disabled = true;
+                };
+
+                socket.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    statusDiv.textContent = 'Status: WebSocket error occurred';
+                    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                        mediaRecorder.stop();
+                    }
+                    startButton.disabled = false;
+                    stopButton.disabled = true;
+                };
+
+            } catch (err) {
+                console.error('Error accessing microphone:', err);
+                statusDiv.textContent = 'Error: ' + err.message;
+            }
+        });
+
+        stopButton.addEventListener('click', () => {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+        });
+    </script>
+</body>
+</html>
