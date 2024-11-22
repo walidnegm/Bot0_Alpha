@@ -25,9 +25,8 @@ VoiceAssist/venvwin/
 # production
 /build
 
-/rasa/myenv
+!/rasa/myenv
 
-/myenv
 
 myenv
 
