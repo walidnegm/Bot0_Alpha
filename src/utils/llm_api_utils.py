@@ -6,7 +6,7 @@ import re
 import json
 import logging
 from io import StringIO
-from typing import Optional, Union, Dict, List, Any, cast
+from typing import Optional, Union, Dict, List, Any, cast, Type
 from dotenv import load_dotenv
 import pandas as pd
 from pydantic import BaseModel, ValidationError
@@ -16,7 +16,7 @@ from anthropic import Anthropic
 from anthropic.types import ContentBlock
 import ollama
 
-from models.llm_response_base_models import (
+from models.llm_response_models import (
     CodeResponse,
     JSONResponse,
     TabularResponse,
@@ -26,8 +26,8 @@ from models.thought_models import (
     IdeaClusterJSONModel,
     IdeaJSONModel,
     ThoughtJSONModel,
-    EvalJSONModel,
 )
+from models.evaluation_models import EvaluationJSONModel
 
 
 # from models.openai_claude_llama_response_basemodels import (
@@ -45,7 +45,7 @@ from models.thought_models import (
 #     LlamaCodeResponse,
 # )
 
-from config import (
+from project_config import (
     GPT_35_TURBO,  # "gpt-3.5-turbo-0125"
     GPT_4,  # "gpt-4"
     GPT_4_TURBO,  # "gpt-4-0125-preview"
@@ -57,11 +57,12 @@ from config import (
 # Logger setup
 logger = logging.getLogger(__name__)
 
-json_model_mapping = {
+json_model_mapping: Dict[str, Type[BaseModel]] = {
     "thought_json": ThoughtJSONModel,
     "idea_json": IdeaJSONModel,
     "cluster_json": IdeaClusterJSONModel,
-    "eval_json": EvalJSONModel,
+    "eval_json": EvaluationJSONModel,
+    "generic_json": JSONResponse,
     # Additional mappings as needed
 }
 
@@ -141,12 +142,14 @@ def get_openai_api_key() -> str:
 
 
 # Validation Functions
-
-
 def validate_json_response(
     data: Union[Dict[str, Any], List[Dict[str, Any]]], json_type: str
 ) -> Union[
-    EvalJSONModel, IdeaClusterJSONModel, IdeaJSONModel, ThoughtJSONModel, JSONResponse
+    EvaluationJSONModel,
+    IdeaClusterJSONModel,
+    IdeaJSONModel,
+    ThoughtJSONModel,
+    JSONResponse,
 ]:
     """
     Validates JSON data against a specific Pydantic model based on `json_type`.
@@ -157,8 +160,43 @@ def validate_json_response(
         - json_type (str): The type of JSON model to use for validation.
 
     Returns:
-        Union[EvalJSONResponse, ThoughtJSONResponse]:
-        An instance of the validated Pydantic model.
+        Union[EvaluationJSONModel, IdeaClusterJSONModel, IdeaJSONModel, ThoughtJSONModel, JSONResponse]:
+        An instance of the validated Pydantic model corresponding to 'json_type'.
+
+        Raises:
+        ValueError:
+            If the provided `json_type` does not exist in `json_model_mapping`.
+
+        ValidationError:
+            If the provided `data` does not conform to the schema defined by the selected Pydantic model.
+
+    Examples:
+        ```python
+        valid_data = {
+            "evaluation": {
+                "criteria": {
+                    "relevance": 5,
+                    "correctness": 4,
+                    "specificity": 5,
+                    "clarity": 5
+                },
+                "explanations": {
+                    "relevance": "The answer directly addresses the question with comprehensive details.",
+                    "correctness": "All factual information is accurate and well-supported.",
+                    "specificity": "The answer provides in-depth explanations with precise details.",
+                    "clarity": "The response is well-structured, clear, and easy to understand."
+                },
+                "total_score": 4.75
+            }
+        }
+
+        try:
+            evaluation = validate_json_response(valid_data, "evaluation")
+            print(evaluation)
+        except ValidationError as e:
+            print("Validation failed:", e)
+        ```
+
     """
     # Get the specific model from the mapping
     model = json_model_mapping.get(json_type)
@@ -245,19 +283,23 @@ def validate_response_type(
 
 # API Calling Functions
 def call_api(
-    client: Optional[Union[OpenAI, Anthropic]],
+    llm_provider: str,
     model_id: str,
     prompt: str,
     expected_res_type: str,
+    json_type: Optional[str],
+    client: Optional[Union[OpenAI, Anthropic]],
     temperature: float,
     max_tokens: int,
-    llm_provider: str,
-    json_type: Optional[str] = None,
 ) -> Union[
     JSONResponse,
     TabularResponse,
     CodeResponse,
     TextResponse,
+    IdeaJSONModel,
+    IdeaClusterJSONModel,
+    ThoughtJSONModel,
+    EvaluationJSONModel,
 ]:
     """Unified function to handle API calls for OpenAI, Claude, and Llama."""
     try:
@@ -354,10 +396,10 @@ def call_openai_api(
     prompt: str,
     model_id: str = "gpt-4-turbo",
     expected_res_type: str = "str",
+    json_type: Optional[str] = None,
+    client: Optional[OpenAI] = None,
     temperature: float = 0.4,
     max_tokens: int = 1056,
-    client: Optional[OpenAI] = None,
-    json_type: str = "thought_json",
 ) -> Union[
     JSONResponse,
     TabularResponse,
@@ -384,14 +426,14 @@ def call_openai_api(
     logger.info("OpenAI client ready for API call.")
 
     return call_api(
-        client=openai_client,
+        llm_provider="openai",
         model_id=model_id,
         prompt=prompt,
         expected_res_type=expected_res_type,
+        json_type=json_type,
+        client=openai_client,
         temperature=temperature,
         max_tokens=max_tokens,
-        llm_provider="openai",
-        json_type=json_type,
     )
 
 
@@ -399,10 +441,10 @@ def call_claude_api(
     prompt: str,
     model_id: str = "claude-3-5-sonnet-20241022",
     expected_res_type: str = "str",
+    json_type: Optional[str] = None,
+    client: Optional[Anthropic] = None,
     temperature: float = 0.4,
     max_tokens: int = 1056,
-    client: Optional[Anthropic] = None,
-    json_type: str = "thought_json",
 ) -> Union[
     JSONResponse,
     TabularResponse,
@@ -426,14 +468,14 @@ def call_claude_api(
     claude_client = client if client else Anthropic(api_key=get_claude_api_key())
     logger.info("Claude client ready for API call.")
     return call_api(
-        client=claude_client,
+        llm_provider="claude",
         model_id=model_id,
         prompt=prompt,
         expected_res_type=expected_res_type,
+        json_type=json_type,
+        client=claude_client,
         temperature=temperature,
         max_tokens=max_tokens,
-        llm_provider="claude",
-        json_type=json_type,
     )
 
 
@@ -441,9 +483,9 @@ def call_llama3(
     prompt: str,
     model_id: str = "llama3",
     expected_res_type: str = "str",
+    json_type: Optional[str] = None,
     temperature: float = 0.4,
     max_tokens: int = 1056,
-    json_type: str = "thought_json",
 ) -> Union[
     JSONResponse,
     TabularResponse,
@@ -452,12 +494,12 @@ def call_llama3(
 ]:
     """Calls the Llama 3 API and parses response."""
     return call_api(
-        client=None,
+        llm_provider="llama3",
         model_id=model_id,
         prompt=prompt,
         expected_res_type=expected_res_type,
+        json_type=json_type,
+        client=None,
         temperature=temperature,
         max_tokens=max_tokens,
-        llm_provider="llama3",
-        json_type=json_type,
     )

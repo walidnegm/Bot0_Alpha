@@ -3,7 +3,7 @@ from pathlib import Path
 from pipelines.thought_processing_pipeline import indexed_thought_processing_pipeline
 from utils.get_file_names import get_file_names
 
-from config import CLAUDE_INDEXED_MODELS_DIR, OPENAI_INDEXED_MODELS_DIR
+from project_config import CLAUDE_INDEXED_MODELS_DIR, OPENAI_INDEXED_MODELS_DIR
 
 
 idea_file_name = (

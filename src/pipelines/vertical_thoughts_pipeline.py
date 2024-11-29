@@ -7,7 +7,7 @@ from typing import Optional, Union
 from thought_generation.thought_generator import ThoughtGenerator
 from utils.generic_utils import read_from_json_file
 
-from config import (
+from project_config import (
     CLAUDE_OPUS,
     CLAUDE_SONNET,
     CLAUDE_HAIKU,

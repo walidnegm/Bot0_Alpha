@@ -78,7 +78,7 @@ from utils.llm_api_utils import (
     get_openai_api_key,
 )
 from utils.generic_utils import save_to_json_file
-from models.llm_response_base_models import JSONResponse
+from models.llm_response_models import JSONResponse
 from models.thought_models import (
     IdeaClusterJSONModel,
     IdeaJSONModel,

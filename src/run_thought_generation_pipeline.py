@@ -64,7 +64,7 @@ from pipelines.vertical_thoughts_pipeline import (
 from utils.generate_file_names import generate_dynamic_file_name
 from thought_generation.thought_utils import generate_indexed_model_file
 
-from config import (
+from project_config import (
     OPENAI_UNINDEXED_MODELS_DIR,
     OPENAI_INDEXED_MODELS_DIR,
     CLAUDE_UNINDEXED_MODELS_DIR,

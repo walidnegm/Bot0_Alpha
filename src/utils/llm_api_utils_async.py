@@ -32,27 +32,44 @@ from utils.llm_api_utils import (
     get_claude_api_key,
     clean_and_extract_json,
     validate_response_type,
+    validate_json_response,
 )
-from models.llm_response_base_models import (
+from models.llm_response_models import (
     CodeResponse,
     JSONResponse,
     TabularResponse,
     TextResponse,
 )
+from models.thought_models import (
+    IdeaClusterJSONModel,
+    IdeaJSONModel,
+    ThoughtJSONModel,
+)
+from models.evaluation_models import EvaluationJSONModel
 
 # Setup logger
 logger = logging.getLogger(__name__)
 
 
 async def call_api_async(
-    client: Optional[Union[AsyncOpenAI, AsyncAnthropic]],
+    llm_provider: str,
     model_id: str,
     prompt: str,
     expected_res_type: str,
+    json_type: Optional[str],
+    client: Optional[Union[AsyncOpenAI, AsyncAnthropic]],
     temperature: float,
     max_tokens: int,
-    llm_provider: str,
-) -> Union[JSONResponse, TabularResponse, CodeResponse, TextResponse]:
+) -> Union[
+    JSONResponse,
+    TabularResponse,
+    CodeResponse,
+    TextResponse,
+    IdeaJSONModel,
+    IdeaClusterJSONModel,
+    ThoughtJSONModel,
+    EvaluationJSONModel,
+]:
     """
     Unified function to handle async API calls for different language models like
     OpenAI, Claude, and Llama.
@@ -69,7 +86,7 @@ async def call_api_async(
         - llm_provider (str): The LLM provider ("openai", "claude", "llama3").
 
     Returns:
-        - Union[JSONResponse, TabularResponse, CodeResponse, TextResponse]:
+        - Union[JSONResponse, TabularResponse, CodeResponse, TextResponse, etc.]:
         Model-specific response object based on `expected_res_type`.
 
     Raises:
@@ -110,7 +127,19 @@ async def call_api_async(
                 messages=[{"role": "user", "content": system_instruction + prompt}],
                 temperature=temperature,
             )
-            response_content = response.content[0]
+            # Extract content from Claude's multi-block response
+            if hasattr(response, "content") and isinstance(response.content, list):
+                # Concatenate text blocks into a single string
+                response_content = "".join(
+                    block.text if hasattr(block, "text") else str(block)
+                    for block in response.content
+                )
+            elif hasattr(response, "content"):
+                response_content = response.content
+            else:
+                raise ValueError(f"Unexpected response format from Claude: {response}")
+
+            logger.info(f"Extracted Claude Response: {response_content}")
 
         elif llm_provider == "llama3":
             options = {
@@ -124,29 +153,28 @@ async def call_api_async(
 
         logger.info(f"Raw {llm_provider} Response: {response_content}")
 
-        # Check if response is empty
+        # Validate response is NOT empty
         if not response_content:
             raise ValueError(f"Received an empty response from {llm_provider} API.")
 
+        # Validate response type (json, text, code, tabular)
         validated_response_content = validate_response_type(
             response_content, expected_res_type
         )
 
-        # Convert to model based on response type and context
-        if expected_res_type == "json" and isinstance(validated_response_content, dict):
-            return validated_response_content, json
-        elif expected_res_type == "tabular" and isinstance(
-            validated_response_content, pd.DataFrame
+        # For JSON responses, perform additional validation if needed
+        if expected_res_type == "json" and isinstance(
+            validated_response_content, JSONResponse
         ):
-            return TabularResponse(data=validated_response_content)
-        elif expected_res_type == "code" and isinstance(
-            validated_response_content, str
-        ):
-            return CodeResponse(code=validated_response_content)
-        elif expected_res_type == "str" and isinstance(validated_response_content, str):
-            return TextResponse(content=validated_response_content)
+            # Additional JSON validation logic if necessary
+            logger.debug("Performing additional JSON validation.")
 
-        raise ValueError(f"Unsupported response type: {expected_res_type}")
+            validated_response_content = validate_json_response(
+                validated_response_content.data, json_type=json_type
+            )
+
+        logger.info(f"Validated response content: {validated_response_content}")
+        return validated_response_content
 
     except (json.JSONDecodeError, ValidationError) as e:
         logger.error(f"Validation or parsing error: {e}")
@@ -159,11 +187,21 @@ async def call_api_async(
 async def call_openai_api_async(
     prompt: str,
     model_id: str = "gpt-4-turbo",
-    expected_res_type: str = "str",
+    expected_res_type: str = "str",  # Set to str (-> text response)
+    json_type: Optional[str] = None,
+    client: Optional[AsyncOpenAI] = None,
     temperature: float = 0.4,
     max_tokens: int = 1056,
-    client: Optional[OpenAI] = None,
-) -> Union[JSONResponse, TabularResponse, TextResponse, CodeResponse]:
+) -> Union[
+    JSONResponse,
+    TabularResponse,
+    TextResponse,
+    CodeResponse,
+    IdeaClusterJSONModel,
+    IdeaJSONModel,
+    ThoughtJSONModel,
+    EvaluationJSONModel,
+]:
     """
     Handles async API call to OpenAI to generate responses based on a given prompt and expected response type.
 
@@ -179,26 +217,43 @@ async def call_openai_api_async(
         Union[JSONResponse, TabularResponse, TextResponse, CodeResponse]: Formatted response object.
     """
     openai_client = client if client else AsyncOpenAI(api_key=get_openai_api_key())
+
     logger.info("OpenAI client ready for async API call.")
-    return await call_api_async(
-        openai_client,
-        model_id,
-        prompt,
-        expected_res_type,
-        temperature,
-        max_tokens,
-        "openai",
+
+    validated_response_content = await call_api_async(
+        llm_provider="openai",
+        model_id=model_id,
+        prompt=prompt,
+        expected_res_type=expected_res_type,
+        json_type=json_type,
+        client=openai_client,
+        temperature=temperature,
+        max_tokens=max_tokens,
     )
+
+    logger.info("call_openai_api_async - return validated response content.")
+
+    return validated_response_content
 
 
 async def call_claude_api_async(
     prompt: str,
     model_id: str = "claude-3-5-sonnet-20241022",
     expected_res_type: str = "str",
+    json_type: Optional[str] = None,
+    client: Optional[AsyncAnthropic] = None,
     temperature: float = 0.4,
     max_tokens: int = 1056,
-    client: Optional[Anthropic] = None,
-) -> Union[JSONResponse, TabularResponse, TextResponse, CodeResponse]:
+) -> Union[
+    JSONResponse,
+    TabularResponse,
+    TextResponse,
+    CodeResponse,
+    IdeaClusterJSONModel,
+    IdeaJSONModel,
+    ThoughtJSONModel,
+    EvaluationJSONModel,
+]:
     """
     Handles async API call to Claude to generate responses based on a given prompt and expected response type.
 
@@ -215,15 +270,18 @@ async def call_claude_api_async(
         Union[JSONResponse, TabularResponse, TextResponse, CodeResponse]: Formatted response object.
     """
     claude_client = client if client else AsyncAnthropic(api_key=get_claude_api_key())
+
     logger.info("Claude client ready for async API call.")
+
     return await call_api_async(
-        claude_client,
-        model_id,
-        prompt,
-        expected_res_type,
-        temperature,
-        max_tokens,
-        "claude",
+        llm_provider="claude",
+        model_id=model_id,
+        prompt=prompt,
+        expected_res_type=expected_res_type,
+        json_type=json_type,
+        client=claude_client,
+        temperature=temperature,
+        max_tokens=max_tokens,
     )
 
 
@@ -231,9 +289,19 @@ async def call_llama3_async(
     prompt: str,
     model_id: str = "llama3",
     expected_res_type: str = "str",
+    json_type: str = None,
     temperature: float = 0.4,
     max_tokens: int = 1056,
-) -> Union[JSONResponse, TabularResponse, TextResponse, CodeResponse]:
+) -> Union[
+    JSONResponse,
+    TabularResponse,
+    TextResponse,
+    CodeResponse,
+    IdeaClusterJSONModel,
+    IdeaClusterJSONModel,
+    ThoughtJSONModel,
+    EvaluationJSONModel,
+]:
     """
     Handles async API call to LLaMA 3 to generate responses based on a given prompt and expected response type.
 
@@ -241,19 +309,20 @@ async def call_llama3_async(
         model_id (str): Model ID to use for the LLaMA 3 API call.
         prompt (str): The prompt to send to the API.
         expected_res_type (str): Expected response format ('str', 'json', 'tabular', or 'code').
-        context_type (str): Specifies context type for prompt handling.
+        json_type (str): Specifies types of JSON response (pydantic model).
         temperature (float): Controls creativity (0 to 1.0).
         max_tokens (int): Maximum tokens for generated response.
 
     Returns:
-        Union[JSONResponse, TabularResponse, TextResponse, CodeResponse]: Formatted response object.
+        Union[JSONResponse, TabularResponse, TextResponse, CodeResponse, etc.]: Formatted response object.
     """
     return await call_api_async(
-        client=None,
+        llm_provider="llama3",
         model_id=model_id,
         prompt=prompt,
         expected_res_type=expected_res_type,
+        json_type=json_type,
+        client=None,
         temperature=temperature,
         max_tokens=max_tokens,
-        llm_provider="llama3",
     )

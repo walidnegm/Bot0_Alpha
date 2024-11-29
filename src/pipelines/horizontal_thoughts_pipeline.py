@@ -7,7 +7,7 @@ import logging
 import logging_config
 from thought_generation.thought_generator import ThoughtGenerator
 
-from config import (
+from project_config import (
     CLAUDE_OPUS,
     CLAUDE_SONNET,
     CLAUDE_HAIKU,

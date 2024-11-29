@@ -1,11 +1,5 @@
-""" Data Input/Output dir/file configuration 
-
-# example_usagage (from modules)
-
-from config import (
-...
-)
-
+""" 
+Data Input/Output dir/file configuration 
 """
 
 # config.py

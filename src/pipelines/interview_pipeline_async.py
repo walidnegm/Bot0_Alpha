@@ -2,39 +2,71 @@
 Pipeline to manage a conversation about a single topic (multiple sub-topics)
 """
 
+from pathlib import Path
 import json
+from typing import Optional, Union
 import aiofiles
 import logging
 import logging_config
 
+from thought_generation.thought_reader import IndexedThoughtReader
 from agents.facilitator_agent_async import FacilitatorAgentAsync
+from agents.state_management import StateManager
 from utils.generic_utils import pretty_print_json
 
+from project_config import INTERVIEW_STATES_FILE
+
+# Setup logger
 logger = logging.getLogger(__name__)
 
 
-async def interview_pipeline_async(sub_thought_file, memory_file):
+async def interview_pipeline_async(
+    thought_data_file: Union[Path, str],
+    user_id: str,
+    memory_file: Union[Path, str],
+    target_thought_index: Optional[int] = None,
+):
+    """
+    Pipeline function to initialize and run the facilitator agent with data from a JSON file.
+
+    Args:
+        json_file (Union[Path, str]): Path to the JSON file containing indexed thoughts data.
+        user_id (str): Identifier for the user.
+
+    Returns:
+        None
+    """
+    logger.info(f"Start interview_pipeline_async.")
 
     # Step 1. Read a main thought and its sub-thoughts from JSON
     try:
-        async with aiofiles.open(sub_thought_file, "r") as f:
-            data = await f.read()  # need to use async version for all the steps
-        data = json.loads(data)
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        logger.error(f"Error loading concepts file: {e}")
-        return
+        # Step 1: Initialize IndexedThoughtReader and validate the JSON file
+        thought_reader = IndexedThoughtReader(thought_data_file)
+        indexed_idea_model = thought_reader.idea_instance  # Extract the validated model
 
-    # Step 2. Instantiate Facilitator Agent Async clss
-    agent = FacilitatorAgentAsync(data)
+        # Step 2: Initialize StateManager
+        state_manager = StateManager(
+            storage_path=INTERVIEW_STATES_FILE
+        )  # Update the path as needed
 
-    for sub_concept in agent.sub_thoughts:
-        sub_concept_name = sub_concept["name"]
-        sub_concept_description = sub_concept.get("description", "")
-
-        question = await agent.generate_question_async(
-            sub_concept_name, sub_concept_description
+        # Step 3: Instantiate FacilitatorAgentAsync with the validated model
+        facilitator_agent = FacilitatorAgentAsync(
+            user_id=user_id,
+            idea_data=indexed_idea_model,
+            state_manager=state_manager,
+            llm_provider="openai",
+            model_id="gpt-4-turbo",
+            temperature=0.3,
+            max_tokens=1056,
         )
-        logger.info(f"Question for '{sub_concept_name}': {question}")
 
-    # await agent.start_conversation()
-    # await agent.save_conversation_memory()
+        # Step 4: Start the conversation
+        await facilitator_agent.begin_conversation_async(
+            thought_index=target_thought_index
+        )
+
+        # Step 5: Persist memory at the end of the session
+        await facilitator_agent.persist_to_memory(memory_json_file=memory_file)
+
+    except Exception as e:
+        logger.error(f"Pipeline encountered an error: {e}")

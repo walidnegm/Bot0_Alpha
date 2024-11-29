@@ -11,7 +11,7 @@ from pipelines.vertical_thoughts_pipeline import (
     vertical_thought_wt_openai_pipeline,
     vertical_thought_wt_claude_pipeline,
 )
-from config import (
+from project_config import (
     rank_of_sub_thoughts_output_0_json,
     array_of_sub_thoughts_output_0_json,
     rank_of_sub_thoughts_output_1_json,

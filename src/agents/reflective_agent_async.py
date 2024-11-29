@@ -8,6 +8,9 @@ import asyncio
 
 # TODO: still working on
 class ReflectiveAgentAsync:
+    def __init__(self):
+        self = self
+
     async def generate_reflective_question(
         self, sub_concept_name: str, user_response: str
     ) -> str:
