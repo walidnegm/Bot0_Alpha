@@ -3,8 +3,8 @@ from pathlib import Path
 import json
 
 # Import modules directly from src
-from src.thought_generation.thought_reader import IndexedThoughtReader
-from src.interviewagent_xf_edit_2 import StateManager, QuestionLoader
+from thought_generation.thought_reader import IndexedThoughtReader
+from interviewagent_xf_edit_2 import StateManager, QuestionLoader
 
 
 class TestQuestionLoading(unittest.TestCase):

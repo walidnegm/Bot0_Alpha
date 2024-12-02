@@ -46,6 +46,31 @@ IMPORTANT CONSTRAINTS:
 - JSON MUST be valid and well-formed.
 """
 
+
+INITIAL_QUESTION_GENERATION_PROMPT = """
+Create a {complexity_level} open-ended discussion question about '{topic_name}'. 
+
+{context}
+
+Ensure the question:
+- Encourages critical thinking
+- Is clear and specific
+- Invites multiple perspectives
+"""
+
+FOLLOWUP_QUESTION_GENERATION_PROMPT = """
+Given the following evaluation and context (if any):
+{evaluation}
+{context}
+
+Generate an insightful follow-up question that:
+- Builds upon the previous discussion
+- Probes deeper into the underlying concepts
+- Encourages further critical analysis
+- Is precise and thought-provoking
+"""
+
+
 # TODO: old version; delete later
 # QUESTION_ANSWER_EVAL_PROMPT = """
 # Question: {question}

@@ -16,6 +16,8 @@ Example usage:
     asyncio.run(main())
 """
 
+from datetime import datetime
+from pathlib import Path
 import json
 import asyncio
 import aioconsole  # For asynchronous console input/output
@@ -23,23 +25,27 @@ import aiohttp  # For making asynchronous HTTP requests
 import aiofiles
 import logging
 from typing import Any, Dict, List, Union, Optional
+import uuid
 
+# LLM APIs
 from openai import OpenAI, AsyncOpenAI  # Adjust according to your module's structure
 from anthropic import (
     Anthropic,
     AsyncAnthropic,
 )  # Adjust according to your module's structure
 
-# Import internal modules
+# From internal modules
 from agents.evaluator_agent_async import EvaluatorAgentAsync
 from agents.reflective_agent_async import ReflectiveAgentAsync
 from agents.state_transition_machine import TopicExhaustionService
 from agents.state_management import StateManager
+from agents.question_generator_async import QuestionGeneratorAsync
 from models.llm_response_models import TextResponse
 from models.indexed_thought_models import (
     IndexedIdeaJSONModel,
     IndexedSubThoughtJSONModel,
 )
+from models.evaluation_models import EvaluationCriteria, EvaluationJSONModel
 from utils.generic_utils import read_from_json_file, save_to_json_file
 from utils.llm_api_utils import get_claude_api_key, get_openai_api_key
 from utils.llm_api_utils_async import (
@@ -62,11 +68,11 @@ class FacilitatorAgentAsync:
     management to ensure a consistent and progressive discussion experience.
 
     Key Features:
-        - **Interactive Discussions**: Guides users through a series of thoughts and sub-thoughts
+        - Interactive Discussions: Guides users through a series of thoughts and sub-thoughts
           using data from the `IndexedIdeaJSONModel`.
-        - **State Management**: Integrates with `StateManager` to track user progress (e.g.,
+        - State Management: Integrates with `StateManager` to track user progress (e.g.,
           thought index and sub-thought index) and ensure continuity across sessions.
-        - **Asynchronous Operations**: Utilizes asynchronous methods for efficient handling of
+        - Asynchronous Operations: Utilizes asynchronous methods for efficient handling of
           user input, API calls, and file I/O.
         - **Flexible Integration**: Modular design supports the addition of other agents
           (e.g., ReflectiveAgent, EvaluatorAgent) and state transition machines.
@@ -120,6 +126,7 @@ class FacilitatorAgentAsync:
     def __init__(
         self,
         user_id: str,
+        memory_file: Union[Path, str],
         idea_data: IndexedIdeaJSONModel,
         state_manager: StateManager,
         llm_provider: str = "openai",
@@ -146,7 +153,9 @@ class FacilitatorAgentAsync:
         """
         logger.debug("Initializing agents ...")
 
+        self.agent_role = "facilitator"
         self.user_id = user_id
+        self.memory_file = memory_file
         self.idea_data = idea_data
         self.state_manager = state_manager
         self.llm_provider = llm_provider
@@ -177,6 +186,8 @@ class FacilitatorAgentAsync:
 
     def _initialize_agents(self):
         """Dynamically initialize agents and services."""
+
+        # EvaluatorAgent agent
         self.evaluator_agent = EvaluatorAgentAsync(
             llm_provider=self.llm_provider,
             model_id=self.model_id,
@@ -184,30 +195,38 @@ class FacilitatorAgentAsync:
             max_tokens=self.max_tokens,
             client=self.client,
         )
+
+        # QuestionGeneratorAsync
+        self.question_generator = QuestionGeneratorAsync(
+            llm_provider=self.llm_provider,
+            model_id=self.model_id,
+            llm_client=self.client,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+        )
+
+        # State transition machine
         self.topic_exhaustion_service = TopicExhaustionService()
+
+        # TODO: build later
+        # ReflectiveAgentAsync
         self.reflective_agent = ReflectiveAgentAsync()
 
-        # # TODO: The agent index approach: implement later
-        # self.agent_index = {
-        #     "evaluator_agent": EvaluatorAgentAsync(
-        #         llm_provider=self.llm_provider,
-        #         model_id=self.model_id,
-        #         temperature=self.temperature,
-        #         max_tokens=self.max_tokens,
-        #         client=self.client,
-        #     ),
-        #     "topic_exhaustion_service": TopicExhaustionService(),
-        #     "reflective_agent": ReflectiveAgentAsync(),
-        # }
-
-        # # *Set attributes for the agents
-        # self.evaluator_agent = self.agent_index["evaluator_agent"]
-        # self.topic_exhaustion_service = self.agent_index["topic_exhaustion_service"]
-        # self.reflective_agent = self.agent_index["reflective_agent"]
+        # Register agents in a centralized index
+        self.agent_index = {
+            "evaluator_agent": self.evaluator_agent,
+            "top_exhaustion_service": self.topic_exhaustion_service,
+            "reflective_agent": self.reflective_agent,
+            "question_generator": self.question_generator,
+        }
 
         logger.debug(f"Agent index after initialization: {self.agent_index}")
+
+        # TODO: debugging; delete later
         logger.debug(
-            f"Initialized agents: evaluator_agent={self.evaluator_agent}, "
+            f"Initialized agents:"
+            f"evaluator_agent={self.evaluator_agent}, "
+            f"question_generator: {self.question_generator}"
             f"topic_exhaustion_service={self.topic_exhaustion_service}, "
             f"reflective_agent={self.reflective_agent}"
         )
@@ -220,6 +239,24 @@ class FacilitatorAgentAsync:
         else:
             logger.debug(f"Retrieved agent '{agent_name}': {agent}")
         return agent
+
+    def check_topic_exhaustion(
+        self, question: str, user_response: str, topic_name: str
+    ) -> bool:
+        """
+        Check if the current topic is exhausted.
+        """
+        exhaustion_result = self.topic_exhaustion_service.is_topic_exhausted(
+            question, user_response
+        )
+
+        if exhaustion_result["is_exhausted"]:
+            print(
+                f"Agent: We've covered {topic_name} sufficiently "
+                f"(Redundancy={exhaustion_result['redundancy_score']:.2f})."
+            )
+            return True
+        return False
 
     async def begin_conversation_async(
         self, thought_index: Optional[int] = None
@@ -281,7 +318,7 @@ class FacilitatorAgentAsync:
 
         while sub_thought_index < len(sub_thoughts):
             current_sub_thought = sub_thoughts[sub_thought_index]
-            await self.handle_focused_discussion_async(
+            await self.discuss_single_sub_thought_async(
                 current_thought, current_sub_thought
             )
 
@@ -303,29 +340,34 @@ class FacilitatorAgentAsync:
             )
             await self.discuss_next_sub_thought_async(thought_index, sub_thought_index)
 
-    async def handle_focused_discussion_async(
+    async def discuss_single_sub_thought_async(
         self, thought: IndexedIdeaJSONModel, sub_thought: IndexedSubThoughtJSONModel
-    ):
+    ) -> None:
         """
-        Conduct a focused discussion on a sub-thought.
+        Discuss a single sub-thought.
 
         Args:
             thought (IndexedThoughtJSONModel): Current thought being discussed.
             sub_thought (IndexedSubThoughtJSONModel): Current sub-thought.
         """
         print(f"\nLet's talk about {sub_thought.name}.")
-        question = await self.generate_question_async(
-            sub_thought.name, sub_thought.description
+        question = await self.question_generator.generate_initial_question(
+            topic_name=sub_thought.name, context_text=sub_thought.description
         )
         print(f"Agent: {question}")
+        await self.log_exchange(role="agent", message=question)  # Logging message
 
         self.topic_exhaustion_service.reset()
         while True:
             # Get response from the user
             user_response = await aioconsole.ainput("You: ")
-            logger.info(f"user_response: {user_response}")
+            await self.log_exchange(
+                role="user", message=user_response
+            )  # Logging message
 
-            # Check if the user used the safe word
+            logger.info(f"user_response: {user_response}")  # debugging
+
+            # Check if the user used the safe word to exit
             if user_response.strip().lower() == self.SAFE_WORD:
                 print("Conversation ended by the user. Goodbye!")
                 return  # Exit the discussion gracefully
@@ -338,18 +380,23 @@ class FacilitatorAgentAsync:
 
             # *MAIN CONVERSATION PROCESS
             try:
-                # Pass response to the evaluator agent for eval
-                evaluation_model, raw_evaluation_json = (
-                    await self.evaluator_agent.evaluate_async(
-                        question=question,
-                        answer=user_response,
-                        idea=self.idea_data.idea,
-                        thought=str(
-                            thought.thought
-                        ),  # thought is a pyd model (need to call its thought attribute)
-                    )
+                # # Pass response to the evaluator agent for eval
+                # evaluation_model, raw_evaluation_json = (
+                #     await self.evaluator_agent.evaluate_async(
+                #         question=question,
+                #         answer=user_response,
+                #         idea=self.idea_data.idea,
+                #         thought=str(
+                #             thought.thought
+                #         ),  # thought is a pyd model (need to call its thought attribute)
+                #     )
+                # )
+                # evaluation = (
+                #     evaluation_model.evaluation
+                # )  # extract evaluation (EvaluationCriteria pyd model)
+                evaluation = await self.evaluate_response(
+                    question, user_response, thought, sub_thought
                 )
-                evaluation = evaluation_model.evaluation  # extract evaluation
 
                 # Update state manager with eval data
                 try:
@@ -360,56 +407,178 @@ class FacilitatorAgentAsync:
                     logger.error(f"Failed to update state with evaluation: {e}")
 
                 # Check if user response's eval score meets the "correctness" threshold
-                meets = self.evaluator_agent.meets_threshold(
-                    criteria=evaluation, threshold=4
+                meets_threshold = self.evaluator_agent.meets_threshold(
+                    criteria=evaluation, threshold=4.5
                 )
-                if meets:
-                    print(f"Agent: Your response is mostly correct.")
-                    # Move to the next sub-thought or topic
+                if meets_threshold:
+                    # Print a conciliatory reply if the threshold is met and move onto the next question
+                    agent_reply = (
+                        "That's correct! Great job. Let's move on to the next topic."
+                    )
+                    print(f"Agent: {agent_reply}")
+                    await self.log_exchange(
+                        role="agent", message=agent_reply
+                    )  # Log message
+                    break
                 else:
-                    print(
-                        f"Ageent: Your response is only partially correct. Let me clarify further."
+                    # If threshold is not met, clarify with a follow-up question
+                    followup_question = (
+                        await self.question_generator.generate_followup_question(
+                            evaluation_text=evaluation.evaluation_text
+                        )
                     )
-                    followup_question = await self.generate_followup_question_async(
-                        evaluation
-                    )
-                    print(f"Agent: {followup_question}")
-
+                    agent_reply = f"Your response is only partially correct. Let me ask you a follow-up querstion. \
+                        {followup_question}"
+                    print(f"Agent: {agent_reply}")
+                    await self.log_exchange(role="agent", message=agent_reply)
             except Exception as e:
                 logger.error(f"Error during evaluation: {e}")
                 logger.info("An error occurred during evaluation. Let's move on.")
                 break
 
-            exhaustion_result = self.topic_exhaustion_service.is_topic_exhausted(
+            if self.topic_exhaustion_service.is_topic_exhausted(
                 question, user_response
-            )
-            if exhaustion_result["is_exhausted"]:
-                print(
-                    f"Agent: We've covered {sub_thought.name} sufficiently "
-                    f"(Redundancy={exhaustion_result['redundancy_score']:.2f})."
-                )
+            )["is_exhausted"]:
+                agent_reply = "We've covered {sub_thought.name} sufficiently. Let's move onto the next topic."
+                print(f"Agent:{agent_reply}")
+                await self.log_exchange(role="agent", message=agent_reply)
                 break
 
-            if evaluation["is_correct"] or evaluation["should_move_on"]:
-                agent_reply = await self.generate_conciliatory_reply_async(evaluation)
-                print(f"Agent: {agent_reply}")
-                break
-            else:
-                followup_question = await self.generate_followup_question_async(
-                    evaluation
-                )
-                print(f"Agent: {followup_question}")
+        # TODO: this part is no longer needed; delete after finalizing the code
+        # # Append the discussion to memory and persist it
+        # await self.update_memory_and_persist(
+        #     data={
+        #         "thought": thought.thought,
+        #         "sub_thought": sub_thought.name,
+        #         "user_response": user_response,
+        #         "evaluation": evaluation,
+        #     },
+        # )
 
-        # Append the discussion to memory and persist it
-        await self.update_memory_and_persist(
-            {
-                "thought": thought.thought,
-                "sub_thought": sub_thought.name,
-                "user_response": user_response,
-                "evaluation": evaluation,
-            }
+    # TODO: need to update typing; fix input
+    async def evaluate_response(
+        self, question: str, user_response: str, thought, sub_thought
+    ) -> EvaluationCriteria:
+        """
+        Evaluate the user's response using the evaluator agent.
+
+        Args:
+            question: The question posed to the user.
+            user_response: The user's response.
+            thought: The main thought being discussed.
+            sub_thought: The specific sub-thought.
+
+        Returns:
+            EvaluationCriteria: The evaluation of the user's response.
+        """
+        evaluation_model, _ = await self.evaluator_agent.evaluate_async(
+            question=question,
+            answer=user_response,
+            idea=self.idea_data.idea,
+            thought=str(thought.thought),
         )
+        return evaluation_model.evaluation
 
+    async def discuss_thought(self, thought, thought_index, sub_thought_index) -> None:
+        """
+        Discuss the current thought and its sub-thoughts.
+
+        Args:
+            thought: The current main thought.
+            thought_index: Index of the current thought.
+            sub_thought_index: Starting sub-thought index.
+        """
+        print(f"Agent: Now discussing '{thought.thought}'.")
+
+        for sub_index in range(sub_thought_index, len(thought.sub_thoughts)):
+            sub_thought = thought.sub_thoughts[sub_index]
+            await self.discuss_single_sub_thought_async(thought, sub_thought)
+
+            # Update state after each sub-thought
+            self.state_manager.update_state(
+                self.user_id,
+                thought_index=thought_index,
+                sub_thought_index=sub_index + 1,
+            )
+
+    async def coordinate_conversation(self) -> None:
+        """
+        Coordinate the conversation flow, managing main thoughts and sub-thoughts.
+
+        Orchestrates the entire conversation by calling modular methods.
+        """
+        print(f"Agent: Let's start discussing {self.idea_data.idea}.")
+
+        # Begin the conversation
+        current_state = self.state_manager.get_state(self.user_id)
+
+        for thought_index in range(
+            current_state.thought_index, len(self.idea_data.thoughts)
+        ):
+            thought = self.idea_data.thoughts[thought_index]
+
+            # Discuss each sub-thought under the main thought
+            sub_thought_index = current_state.sub_thought_index or 0
+            await self.discuss_thought(thought, thought_index, sub_thought_index)
+
+            # Reset sub-thought index and update state
+            self.state_manager.update_state(
+                self.user_id, thought_index=thought_index + 1, sub_thought_index=0
+            )
+
+        print("Agent: We've completed all thoughts. Thank you for the discussion!")
+
+    async def log_exchange(self, role: str, message: str) -> None:
+        """
+        Log and persist a single contribution to the conversation memory.
+
+        Args:
+            role (str): The role of the contributor ('agent' or 'user').
+            message (str): The content of the message.
+
+        Example output:
+        [
+            {
+                "message_id": "1d9a3d62-4ed9-43eb-8446-3bf68d2150cc",
+                "timestamp": "2024-12-01T14:35:22.123456",
+                "role": "agent",
+                "message": "What are the primary causes of climate change?"
+            },
+            {
+                "message_id": "41eae8bf-8cf8-40ab-a8df-b4f62e97e32d",
+                "timestamp": "2024-12-01T14:36:10.789012",
+                "role": "user",
+                "message": "I think it's caused by greenhouse gases and human activities."
+            },
+            {
+                "message_id": "9bdc4e62-5a8f-423e-99ef-2cfcabb13aa1",
+                "timestamp": "2024-12-01T14:37:05.678901",
+                "role": "user",
+                "message": "What about natural causes? Do they contribute too?"
+            },
+            {
+                "message_id": "3de44c23-1f9b-4abc-9d4e-c52f631321fd",
+                "timestamp": "2024-12-01T14:37:45.345678",
+                "role": "agent",
+                "message": "Good question! Natural causes like volcanic activity can contribute, \
+                    but human activity is the dominant factor."
+            }
+        ]
+        """
+        # Create a memory entry for the contribution
+        memory_entry = {
+            "message_id": str(uuid.uuid4()),
+            "timestamp": datetime.now().isoformat(),
+            "role": role,
+            "message": message,
+        }
+
+        # Append to memory and persist
+        async with self.memory_lock:
+            self.conversation_memory.append(memory_entry)
+            await self.persist_to_memory()
+
+    # TODO: to delete
     async def update_memory_and_persist(self, data: Dict):
         """
         Update conversation memory and persist changes asynchronously.
@@ -421,7 +590,7 @@ class FacilitatorAgentAsync:
             self.conversation_memory.append(data)
             await self.persist_to_memory()
 
-    async def persist_to_memory(self, memory_json_file: str) -> None:
+    async def persist_to_memory(self) -> None:
         """
         Persist the conversation memory to a JSON file.
 
@@ -430,68 +599,11 @@ class FacilitatorAgentAsync:
         """
         async with self.memory_lock:  # Lock ensures no updates occur during persistence
             try:
-                async with aiofiles.open(memory_json_file, "w") as f:
+                async with aiofiles.open(self.memory_file, "w") as f:
                     await f.write(json.dumps(self.conversation_memory, indent=2))
             except IOError as e:
                 logger.error(f"Error saving conversation memory: {e}")
                 raise
-
-    async def generate_question_async(self, name, description=None):
-        """Generate a discussion question about the sub-thought."""
-        prompt = (
-            f"Based on the description: {description}, generate an open-ended question about '{name}'."
-            if description
-            else f"Generate an open-ended question about '{name}'."
-        )
-
-        try:
-            response_model = await self.call_llm_async(prompt, self.llm_provider, "str")
-
-            question = (
-                response_model.content.strip()
-            )  # Extract text from TextResponseModel
-
-            logger.info(f"Generated question: {response_model.content.strip()}")
-
-            return response_model.content.strip()
-        except Exception as e:
-            logger.error(f"Error generating question: {e}")
-            return "What are your thoughts on this topic?"
-
-    async def generate_conciliatory_reply_async(
-        self, evaluation: Dict[str, Any]
-    ) -> str:
-        # Generate a conciliatory reply based on the evaluation
-        return (
-            "That's correct! Great job."
-            if evaluation["is_correct"]
-            else "Thank you for your thoughts. Let's move on to the next topic."
-        )
-
-    async def generate_followup_question_async(
-        self,
-        evaluation: Dict[str, Any],
-        llm_provider: Optional[str] = None,
-    ) -> str:
-        # Generate a follow-up question to guide the user towards the correct understanding
-        prompt: str = f"""Based on the user's previous response and your evaluation:
-        {evaluation['evaluation_text']}
-        Generate a helpful follow-up question to guide the user towards the correct understanding. Provide only the question and no additional text.
-        """
-        if llm_provider is None:
-            llm_provider = self.llm_provider
-
-        try:
-            response_model: TextResponse = await self.call_llm_async(
-                prompt=prompt,
-                llm_provider=llm_provider,
-                expected_res_type="str",
-            )
-        except Exception as e:
-            logger.error(f"Error generating follow-up question: {e}")
-            return "Could you elaborate further?"
-
-        return response_model.content.strip()
 
     async def call_llm_async(
         self,

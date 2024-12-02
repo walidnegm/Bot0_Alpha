@@ -34,8 +34,8 @@ class EvaluationCriteria(BaseModel):
     ```
     """
 
-    criteria: Dict[str, int] = Field(..., min_items=4, max_items=4)
-    explanations: Dict[str, str] = Field(..., min_items=4, max_items=4)
+    criteria: Dict[str, int] = Field(..., min_length=4, max_length=4)
+    explanations: Dict[str, str] = Field(..., min_length=4, max_length=4)
     total_score: float
 
     @field_validator("criteria")

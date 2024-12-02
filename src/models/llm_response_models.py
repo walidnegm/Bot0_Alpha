@@ -5,7 +5,7 @@ Last Updated on:
 pydantic base models
 """
 
-from pydantic import BaseModel, ValidationError, constr
+from pydantic import BaseModel, ConfigDict, ValidationError, constr
 from typing import List, Union, Any, Optional, Dict
 import pandas as pd
 import json
@@ -16,6 +16,10 @@ import logging
 
 class TextResponse(BaseModel):
     content: str
+
+    model_config = ConfigDict(
+        frozen=True
+    )  # Use ConfigDict instead of class-based Config
 
 
 # Define a model for the sub-concepts
