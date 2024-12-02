@@ -25,6 +25,11 @@ VoiceAssist/venvwin/
 # production
 /build
 
+!/rasa/myenv
+
+
+myenv
+
 # misc
 .DS_Store
 .env.local
