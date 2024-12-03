@@ -41,6 +41,12 @@ class ConversationMetrics:
 
 class TopicExhaustionService:
     def __init__(self, thresholds: Optional[Dict[str, float]] = None):
+        """
+        Initialize the service with thresholds for redundancy, coverage, and new info scores.
+
+        Args:
+            thresholds (Optional[Dict[str, float]]): Threshold values for exhaustion.
+        """
         self.logger = logging.getLogger(__name__)
         self.thresholds = thresholds or {
             "redundancy": 0.7,
@@ -50,10 +56,25 @@ class TopicExhaustionService:
         self.reset()
 
     def reset(self):
-        """Reset service state for new topic"""
+        """Reset the service state for a new topic."""
         self.keywords: Set[str] = set()
         self.previous_responses: List[str] = []
         self.metrics = ConversationMetrics()
+        self.scoped_logs: List[Dict[str, str]] = (
+            []
+        )  # To store scoped logs for this topic
+
+    def set_scoped_logs(self, scoped_logs: List[Dict[str, str]]) -> None:
+        """
+        Set scoped logs for the current topic.
+
+        Args:
+            scoped_logs (List[Dict[str, str]]): Scoped logs for the current sub-thought.
+        """
+        self.scoped_logs = scoped_logs
+        self.previous_responses = [
+            log["message"] for log in self.scoped_logs if log["role"] == "user"
+        ]
 
     def is_topic_exhausted(
         self, question: str, answer: str
@@ -62,11 +83,11 @@ class TopicExhaustionService:
         Analyze if the current topic is exhausted based on the latest exchange.
 
         Args:
-            - question (str): The latest question asked.
-            - answer (str): The user's latest response.
+            question (str): The latest question asked.
+            answer (str): The user's latest response.
 
         Returns:
-            - Dict[str, Union[bool, float]]: Dictionary containing the exhaustion
+            Dict[str, Union[bool, float]]: Dictionary containing the exhaustion
             status and each score.
         """
         # Update metrics
@@ -95,7 +116,9 @@ class TopicExhaustionService:
         }
 
     def _calculate_redundancy(self, answer: str) -> float:
-        """Calculate redundancy based on overlap with previous responses"""
+        """
+        Calculate redundancy based on overlap with all previous user responses.
+        """
         if not self.previous_responses:
             self.previous_responses.append(answer)
             return 0.0
@@ -112,15 +135,25 @@ class TopicExhaustionService:
         return total_overlap / len(self.previous_responses)
 
     def _calculate_coverage(self, question: str, answer: str) -> float:
-        """Calculate how well the answer covers the question"""
+        """
+        Calculate how well the answer covers the question and previous agent questions.
+        """
         question_words = set(question.lower().split())
         answer_words = set(answer.lower().split())
 
-        overlap = len(question_words.intersection(answer_words))
-        return overlap / len(question_words) if question_words else 0
+        # Combine all agent questions from scoped logs for broader coverage evaluation
+        agent_questions = " ".join(
+            log["message"] for log in self.scoped_logs if log["role"] == "agent"
+        )
+        agent_words = set(agent_questions.lower().split())
+
+        overlap = len(answer_words.intersection(agent_words.union(question_words)))
+        return overlap / len(agent_words.union(question_words)) if agent_words else 0
 
     def _calculate_new_info(self, answer: str) -> float:
-        """Calculate the amount of new information in the response"""
+        """
+        Calculate the amount of new information in the response based on all logs.
+        """
         words = set(answer.lower().split())
         new_words = words - self.keywords
         self.keywords.update(words)

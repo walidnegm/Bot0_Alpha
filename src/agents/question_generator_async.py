@@ -3,7 +3,7 @@ TBA
 """
 
 # Dependencies
-from typing import Optional, Union
+from typing import Optional, Union, List, Dict
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -16,6 +16,7 @@ from openai import AsyncOpenAI
 from anthropic import AsyncAnthropic
 
 from models.llm_response_models import TextResponse
+from models.evaluation_models import EvaluationCriteria
 from utils.llm_api_utils_async import (
     call_claude_api_async,
     call_openai_api_async,
@@ -32,10 +33,17 @@ logger = logging.getLogger(__name__)
 
 class QuestionGeneratorAsync:
     """
-    Utility class for generating intelligent and contextual questions using an LLM.
+    Generate a follow-up question based on evaluation, context, and scoped logs.
 
-    Supports generating initial and follow-up questions with configurable parameters
-    and built-in error handling.
+    Args:
+        evaluation (EvaluationCriteria): Evaluation data for the user's response.
+        idea (str): The overarching idea or context.
+        thought (str): The main thought being discussed.
+        sub_thought_description (str): The sub-thought description for context.
+        context_logs (List[Dict]): Scoped logs for the current sub-thought.
+
+    Returns:
+        str: The generated follow-up question.
     """
 
     def __init__(
@@ -105,30 +113,99 @@ class QuestionGeneratorAsync:
         stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10)
     )
     async def generate_followup_question(
-        self, evaluation_text: str, context_text: Optional[str] = None
+        self,
+        evaluation: EvaluationCriteria,
+        idea: str,
+        thought: str,
+        sub_thought_description: str,
+        context_logs: List[Dict],
     ) -> TextResponse:
         """
-        Generate a strategic follow-up question based on previous evaluation.
+        Generate a follow-up question based on evaluation, context, and scoped logs.
 
         Args:
-            evaluation_text: Context or previous evaluation to base follow-up on.
-            context_text: Optional context to incorporate into the question.
+            - evaluation (EvaluationCriteria): Evaluation data (pydantic model) for the user's response.
+            - idea (str): The overarching idea or context.
+            - thought (str): The main thought being discussed.
+            - sub_thought_description (str): The sub-thought description for context.
+            - context_logs (List[Dict]): Scoped logs for the current sub-thought.
 
         Returns:
-            A generated follow-up question as a TextResponse object.
+            str: The generated follow-up question.
+
+        >>> Example:
+        *Input (Mocked):
+        - evaluation:
+            relevance: 4/5, "Addresses key aspects but misses technical depth."
+            correctness: 5/5, "All details are accurate."
+            specificity: 3/5, "Could include more specific use cases."
+            clarity: 5/5, "The response is clear and easy to follow."
+            total_score: 4.25
+        - idea: "Embedded Software Development for Aerospace"
+        - thought: "Safety-Critical Requirements in Embedded Systems"
+        - sub_thought_description: "Determining software safety levels (DAL)"
+        - context_logs:
+            [
+                {"role": "agent", "message": "What are the key factors for determining software \
+                    safety levels?"},
+                {"role": "user", "message": "Software safety levels depend on system criticality \
+                    and failure impact."},
+            ]
+        
+        *Generated Prompt for LLM (Mocked)
+        Given the following context, evaluation, and conversation so far:
+
+        Context:
+        - Idea: Embedded Software Development for Aerospace
+        - Main Thought: Safety-Critical Requirements in Embedded Systems
+        - Sub-thought: Determining software safety levels (DAL) for certification compliance
+
+        Evaluation:
+        - Relevance: 4/5, The response is mostly relevant but misses key technical details.
+        - Correctness: 3/5, Some factual inaccuracies were observed.
+        - Specificity: 2/5, The response is too generic and lacks depth.
+        - Clarity: 5/5, The response is well-structured and easy to follow.
+
+        Conversation Context:
+        Agent: What are the key factors for determining software safety levels?
+        User: Software safety levels depend on system criticality and failure impact.
+        Agent: Can you provide an example of how failure impact influences safety levels?
+
+        Generate an insightful follow-up question that:
+        - Builds upon the previous discussion
+        - Probes deeper into the underlying concepts
+        - Encourages further critical analysis
+        - Is precise and thought-provoking.
+
+        *Output (Mocked):
+        "What specific techniques or frameworks can be used to assess failure impact in \
+            safety-critical systems, and how do they influence the determination of DAL \
+                in aerospace applications?"
+
         """
-        context_prompt = (
-            f"Context:\n{context_text}"
-            if context_text
-            else "No additional context provided."
+        # Serialize evaluation scores and explanations
+        evaluation_scores_and_explanations = "\n".join(
+            f"- {criterion.capitalize()}: {score}/5, {evaluation.explanations[criterion]}"
+            for criterion, score in evaluation.criteria.items()
         )
 
+        # Format conversation context
+        conversation_context = "\n".join(
+            f"{log['role'].capitalize()}: {log['message']}" for log in context_logs
+        )
+
+        # Build the prompt
         prompt = FOLLOWUP_QUESTION_GENERATION_PROMPT.format(
-            evaluation=evaluation_text, context=context_prompt
+            idea=idea,
+            main_thought=thought,
+            sub_thought_description=sub_thought_description,
+            evaluation_scores_and_explanations=evaluation_scores_and_explanations,
+            conversation_context=conversation_context,
         )
 
-        logger.info(f"Followup question generation prompt: {prompt}")
-        return await self.call_llm_async(prompt)
+        logger.info(f"Follow-up question generation prompt: {prompt}")
+
+        return await self.call_llm_async(prompt)  # Returns a pydantic obj
 
     @retry(
         stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10)

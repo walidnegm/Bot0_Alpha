@@ -59,15 +59,24 @@ Ensure the question:
 """
 
 FOLLOWUP_QUESTION_GENERATION_PROMPT = """
-Given the following evaluation and context (if any):
-{evaluation}
-{context}
+Given the following context, evaluation, and conversation so far:
+
+Context:
+- Idea: {idea}
+- Main Thought: {main_thought}
+- Sub-thought: {sub_thought_description}
+
+Evaluation:
+{evaluation_scores_and_explanations}
+
+Conversation Context:
+{conversation_context}
 
 Generate an insightful follow-up question that:
 - Builds upon the previous discussion
 - Probes deeper into the underlying concepts
 - Encourages further critical analysis
-- Is precise and thought-provoking
+- Is precise and thought-provoking.
 """
 
 

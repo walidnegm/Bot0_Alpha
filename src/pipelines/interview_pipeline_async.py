@@ -66,7 +66,9 @@ async def interview_pipeline_async(
         )
 
         # Step 5: Persist memory at the end of the session
-        await facilitator_agent.persist_to_memory(memory_json_file=memory_file)
+        await facilitator_agent.persist_chat_history_to_disk(
+            memory_json_file=memory_file
+        )
 
     except Exception as e:
         logger.error(f"Pipeline encountered an error: {e}")
