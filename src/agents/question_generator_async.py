@@ -205,7 +205,7 @@ class QuestionGeneratorAsync:
 
         logger.info(f"Follow-up question generation prompt: {prompt}")
 
-        return await self.call_llm_async(prompt)  # Returns a pydantic obj
+        return await self.call_llm_async(prompt=prompt)  # Returns a pydantic obj
 
     @retry(
         stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10)

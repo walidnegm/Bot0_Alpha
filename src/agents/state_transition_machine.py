@@ -114,6 +114,13 @@ class TopicExhaustionService:
             - Updates the `scoped_logs` attribute with the provided logs.
             - Extracts and stores all user responses in `previous_responses`.
         """
+        if not isinstance(scoped_logs, list):
+            self.logger.error("Scoped logs must be a list of dictionaries.")
+            raise ValueError("Scoped logs must be a list of dictionaries.")
+        if not all(isinstance(log, dict) for log in scoped_logs):
+            self.logger.error("Each log entry in scoped logs must be a dictionary.")
+            raise ValueError("Each log entry in scoped logs must be a dictionary.")
+
         self.scoped_logs = scoped_logs
         self.previous_responses = [
             log["message"] for log in self.scoped_logs if log["role"] == "user"
@@ -149,13 +156,18 @@ class TopicExhaustionService:
                 "new_info_score": 0.1,
             }
         """
-        # Update metrics
-        self.metrics.exchange_count += 1
-        self.metrics.last_update = datetime.now()
+        try:
+            # Update metrics
+            self.metrics.exchange_count += 1
+            self.metrics.last_update = datetime.now()
 
-        # Calculate scores
-        self.metrics.redundancy_score = self._calculate_redundancy(answer)
-        self.metrics.new_info_score = self._calculate_new_info(answer)
+            # Calculate scores
+            self.metrics.redundancy_score = self._calculate_redundancy(answer)
+            self.metrics.new_info_score = self._calculate_new_info(answer)
+
+        except Exception as e:
+            self.logger.error(f"Error calculating metrics: {e}", exc_info=True)
+            raise RuntimeError("Failed to calculate topic exhaustion metrics.") from e
 
         # Log metrics for monitoring
         self.logger.debug(
@@ -164,7 +176,13 @@ class TopicExhaustionService:
             f"New Info={self.metrics.new_info_score:.2f}"
         )
 
-        exhausted = self.metrics.is_exhausted(self.thresholds)
+        try:
+            # *Determine exhaustion status
+            exhausted = self.metrics.is_exhausted(self.thresholds)
+        except KeyError as e:
+            self.logger.error(f"Missing threshold key: {e}", exc_info=True)
+            raise ValueError(f"Thresholds must include keys: {e}") from e
+
         return {
             "is_exhausted": exhausted,
             "redundancy_score": self.metrics.redundancy_score,
@@ -193,20 +211,25 @@ class TopicExhaustionService:
             Latest Response: "AI improves automation"
             Redundancy Score: Calculated based on shared words {"AI", "improves"}.
         """
-        if not self.previous_responses:
+        try:
+            if not self.previous_responses:
+                self.previous_responses.append(answer)
+                return 0.0
+
+            current_words = set(answer.lower().split())
+            total_overlap = 0
+
+            for prev_response in self.previous_responses:
+                prev_words = set(prev_response.lower().split())
+                overlap = len(current_words.intersection(prev_words))
+                total_overlap += overlap / len(current_words) if current_words else 0
+
             self.previous_responses.append(answer)
-            return 0.0
+            return total_overlap / len(self.previous_responses)
 
-        current_words = set(answer.lower().split())
-        total_overlap = 0
-
-        for prev_response in self.previous_responses:
-            prev_words = set(prev_response.lower().split())
-            overlap = len(current_words.intersection(prev_words))
-            total_overlap += overlap / len(current_words) if current_words else 0
-
-        self.previous_responses.append(answer)
-        return total_overlap / len(self.previous_responses)
+        except Exception as e:
+            self.logger.error(f"Error calculating resundancy: {e}", exc_info=True)
+            raise
 
     def _calculate_new_info(self, answer: str) -> float:
         """

@@ -4,7 +4,7 @@ Pipeline to manage a conversation about a single topic (multiple sub-topics)
 
 from pathlib import Path
 import json
-from typing import Optional, Union
+from typing import Optional, Union, List
 import aiofiles
 import logging
 import logging_config
@@ -24,14 +24,16 @@ async def interview_pipeline_async(
     thought_data_file: Union[Path, str],
     user_id: str,
     memory_file: Union[Path, str],
-    target_thought_index: Optional[int] = None,
+    target_thought_indexes: Optional[List[int]] = None,
 ):
     """
     Pipeline function to initialize and run the facilitator agent with data from a JSON file.
 
     Args:
-        json_file (Union[Path, str]): Path to the JSON file containing indexed thoughts data.
+        thought_data_file (Union[Path, str]): Path to the JSON file containing indexed thoughts data.
         user_id (str): Identifier for the user.
+        memory_file (Union[Path, str]): Path to the file for saving conversation memory.
+        target_thought_index (Optional[int]): Specific thought index to focus on, if any.
 
     Returns:
         None
@@ -58,16 +60,12 @@ async def interview_pipeline_async(
             model_id="gpt-4-turbo",
             temperature=0.3,
             max_tokens=1056,
+            memory_file=memory_file,
         )
 
-        # Step 4: Start the conversation
-        await facilitator_agent.begin_conversation_async(
-            thought_index=target_thought_index
-        )
-
-        # Step 5: Persist memory at the end of the session
-        await facilitator_agent.persist_chat_history_to_disk(
-            memory_json_file=memory_file
+        # Step 4: Process conversation
+        await facilitator_agent.coordinate_conversation(
+            thought_indexes=target_thought_indexes
         )
 
     except Exception as e:

@@ -156,16 +156,30 @@ class FacilitatorAgentAsync:
         )
         self.topic_exhaustion_service = TopicExhaustionService()
 
-    async def coordinate_conversation(self) -> None:
+    async def coordinate_conversation(
+        self, thought_indexes: Optional[List[int]] = None
+    ) -> None:
         """
         Orchestrate the flow of the conversation.
 
         Progress through each thought and its sub-thoughts while maintaining state.
         """
         state = self.state_manager.get_state(self.user_id)
-        print(f"Agent: Let's start discussing {self.idea_data.idea}.")
+        agent_reply = f"Let's start discussing {self.idea_data.idea}."
+        print(f"Agent: {agent_reply}")
+        await self.log_exchange(role="agent", message=agent_reply)
 
-        for thought_index in range(state.thought_index, len(self.idea_data.thoughts)):
+        # Determine which thoughts to process
+        if thought_indexes is None:
+            thought_indexes = range(state.thought_index, len(self.idea_data.thoughts))
+        else:
+            thought_indexes = [
+                idx
+                for idx in thought_indexes
+                if state.thought_index <= idx < len(self.idea_data.thoughts)
+            ]
+
+        for thought_index in thought_indexes:
             thought = self.idea_data.thoughts[thought_index]
             try:
                 await self.discuss_thought(
@@ -175,7 +189,9 @@ class FacilitatorAgentAsync:
                 print("Conversation terminated by the user. Goodbye!")
                 return
 
-        print("Agent: We've completed all thoughts. Thank you for the discussion!")
+        agent_reply = "We've completed all thoughts. Thank you for the discussion!"
+        print(f"Agent: {agent_reply}")
+        await self.log_exchange(role="agent", message=agent_reply)
 
     async def discuss_thought(
         self, thought: IndexedIdeaJSONModel, thought_index: int, sub_thought_index: int
@@ -215,6 +231,12 @@ class FacilitatorAgentAsync:
         question = await self.question_generator.generate_initial_question(
             topic_name=sub_thought.name, context_text=sub_thought.description
         )
+
+        # Ensure question content is a string
+        if not isinstance(question, TextResponse):
+            raise TypeError(f"Expected TextResponse, got {type(question).__name__}")
+        question: str = question.content  # Explicitly extract content
+
         print(f"Agent: {question}")
         await self.log_exchange(role="agent", message=question, scoped=True)
 
@@ -267,6 +289,16 @@ class FacilitatorAgentAsync:
                             context_logs=self.get_scoped_logs_for_sub_thought(),
                         )
                     )
+
+                    # Ensure question content is a string
+                    if not isinstance(followup_question, TextResponse):
+                        raise TypeError(
+                            f"Expected TextResponse, got {type(question).__name__}"
+                        )
+                    followup_question: str = (
+                        followup_question.content
+                    )  # Explicitly extract content
+
                     agent_reply = f"Your response is only partially correct. Here's a follow-up question: \
                         {followup_question}"
                     print(f"Agent: {agent_reply}")
@@ -279,13 +311,13 @@ class FacilitatorAgentAsync:
                 print("An error occurred during evaluation. Let's move on.")
                 break
 
-            # Check for topic exhaustion
+            # Check for topic exhaustion (if redundancy or lack of new info)
             self.topic_exhaustion_service.set_scoped_logs(
                 self.get_scoped_logs_for_sub_thought()
             )
 
             exhaustion_result = self.topic_exhaustion_service.is_topic_exhausted(
-                question, user_response
+                answer=user_response
             )
             if exhaustion_result["is_exhausted"]:
                 agent_reply = (
@@ -294,6 +326,18 @@ class FacilitatorAgentAsync:
                 print(f"Agent: {agent_reply}")
                 await self.log_exchange(role="agent", message=agent_reply, scoped=True)
                 break
+
+    async def evaluate_response(
+        self, question: str, user_response: str, thought: IndexedIdeaJSONModel
+    ) -> EvaluationCriteria:
+        """Evaluate a user's response."""
+        evaluation, _ = await self.evaluator_agent.evaluate_async(
+            question=question,
+            answer=user_response,
+            idea=self.idea_data.idea,
+            thought=thought.thought,
+        )  # The 2nd parameter returned is not used in this module
+        return evaluation.evaluation
 
     async def log_exchange(self, role: str, message: str, scoped: bool = False) -> None:
         """Log an interaction and optionally store it in scoped logs."""
@@ -309,18 +353,6 @@ class FacilitatorAgentAsync:
 
         if scoped:
             self.scoped_logs.append(log_entry)
-
-    async def evaluate_response(
-        self, question: str, user_response: str, thought: IndexedIdeaJSONModel
-    ) -> EvaluationCriteria:
-        """Evaluate a user's response."""
-        evaluation, _ = await self.evaluator_agent.evaluate_async(
-            question=question,
-            answer=user_response,
-            idea=self.idea_data.idea,
-            thought=thought.thought,
-        )  # The 2nd parameter returned is not used in this module
-        return evaluation.evaluation
 
     def start_scoped_logging(self) -> None:
         """Initialize a new scoped log."""
