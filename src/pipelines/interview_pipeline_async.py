@@ -24,6 +24,7 @@ async def interview_pipeline_async(
     thought_data_file: Union[Path, str],
     user_id: str,
     memory_file: Union[Path, str],
+    interview_state_file: Union[Path, str],
     target_thought_indexes: Optional[List[int]] = None,
 ):
     """
@@ -48,8 +49,8 @@ async def interview_pipeline_async(
 
         # Step 2: Initialize StateManager
         state_manager = StateManager(
-            storage_path=INTERVIEW_STATES_FILE
-        )  # Update the path as needed
+            storage_path=interview_state_file
+        )  # storage is where to save the states data file
 
         # Step 3: Instantiate FacilitatorAgentAsync with the validated model
         facilitator_agent = FacilitatorAgentAsync(

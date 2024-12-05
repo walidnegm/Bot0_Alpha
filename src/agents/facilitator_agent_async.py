@@ -14,14 +14,19 @@ and can route API calls to the specified provider using the call_llm_async metho
 Example usage:
     # Run the facilitator agent
     asyncio.run(main())
+
+
+TODO: Needed to handle "I don't know type of question"
+TODO: Need to add reflective agent
+TODO: Need to define roles of different agents and leverage it to dynamically create prompts
 """
 
 import json
-import asyncio
 from datetime import datetime
 from pathlib import Path
 import uuid
 from typing import Any, Dict, List, Union, Optional
+from pydantic import ValidationError
 
 import logging
 import aiofiles
@@ -165,7 +170,7 @@ class FacilitatorAgentAsync:
         Progress through each thought and its sub-thoughts while maintaining state.
         """
         state = self.state_manager.get_state(self.user_id)
-        agent_reply = f"Let's start discussing {self.idea_data.idea}."
+        agent_reply = f"The main topic is {self.idea_data.idea}."
         print(f"Agent: {agent_reply}")
         await self.log_exchange(role="agent", message=agent_reply)
 
@@ -183,7 +188,9 @@ class FacilitatorAgentAsync:
             thought = self.idea_data.thoughts[thought_index]
             try:
                 await self.discuss_thought(
-                    thought, thought_index, state.sub_thought_index
+                    thought=thought,
+                    thought_index=thought_index,
+                    sub_thought_index=state.sub_thought_index,
                 )
             except UserExitException:
                 print("Conversation terminated by the user. Goodbye!")
@@ -207,7 +214,7 @@ class FacilitatorAgentAsync:
         print(f"Agent: Now discussing '{thought.thought}'.")
         for sub_index in range(sub_thought_index, len(thought.sub_thoughts)):
             sub_thought = thought.sub_thoughts[sub_index]
-            await self.discuss_single_sub_thought_async(thought, sub_thought)
+            await self.discuss_single_sub_thought_async(thought, sub_thought, 5)
             self.state_manager.update_state(
                 self.user_id,
                 thought_index=thought_index,
@@ -215,14 +222,19 @@ class FacilitatorAgentAsync:
             )
 
     async def discuss_single_sub_thought_async(
-        self, thought: IndexedIdeaJSONModel, sub_thought: IndexedSubThoughtJSONModel
+        self,
+        thought: IndexedIdeaJSONModel,
+        sub_thought: IndexedSubThoughtJSONModel,
+        max_no_questions: int = 100,  # default to a very high number -> no upper limit
     ) -> None:
         """
         Discuss a single sub-thought.
 
         Args:
-            thought (IndexedIdeaJSONModel): Current thought being discussed.
-            sub_thought (IndexedSubThoughtJSONModel): Specific sub-thought to discuss.
+            - thought (IndexedIdeaJSONModel): Current thought being discussed.
+            - sub_thought (IndexedSubThoughtJSONModel): Specific sub-thought to discuss.
+            - max_no_questions (int): Maximum number of follow-up questions to ask.
+                                    Defaults to 100 (effectively no limit).
         """
         # Initialize scoped logging for the sub-thought
         self.start_scoped_logging()
@@ -241,6 +253,12 @@ class FacilitatorAgentAsync:
         await self.log_exchange(role="agent", message=question, scoped=True)
 
         self.topic_exhaustion_service.reset()
+
+        # Initialize follow-up question counter
+        follow_up_count = 0
+        max_follow_up_questions = (
+            max_no_questions - 1
+        )  # Set the maximum number of follow-up questions
 
         while True:
             # Get user response
@@ -299,8 +317,21 @@ class FacilitatorAgentAsync:
                         followup_question.content
                     )  # Explicitly extract content
 
-                    agent_reply = f"Your response is only partially correct. Here's a follow-up question: \
-                        {followup_question}"
+                    # Increment follow-up question counter
+                    follow_up_count += 1
+                    if follow_up_count > max_follow_up_questions:
+                        print(
+                            "Agent: Let's move on, as we've had enough discussion on this topic."
+                        )
+                        logger.info(
+                            f"Follow-up question limit of {max_no_questions} reached for sub-thought: {sub_thought.name}."
+                        )
+                        break
+
+                    agent_reply = (
+                        f"Your response is only partially correct. Here's a follow-up question: "
+                        f"{followup_question}"
+                    )
                     print(f"Agent: {agent_reply}")
                     await self.log_exchange(
                         role="agent", message=agent_reply, scoped=True
@@ -330,14 +361,84 @@ class FacilitatorAgentAsync:
     async def evaluate_response(
         self, question: str, user_response: str, thought: IndexedIdeaJSONModel
     ) -> EvaluationCriteria:
-        """Evaluate a user's response."""
-        evaluation, _ = await self.evaluator_agent.evaluate_async(
+        """
+        Evaluate a user's response based on a given question and thought context.
+
+        This method integrates with the evaluator agent to analyze the user's response
+        and validate the evaluation result. It performs the following transformations:
+
+        1. Input Parameters:
+        - `question` (str): The question posed to the user.
+        - `user_response` (str): The user's answer to the question.
+        - `thought` (IndexedIdeaJSONModel): The context of the current thought being
+        discussed.
+
+        2. Call to 'EvaluatorAgentAsync.evaluate_async':
+        - Input:
+            - 'question': The question posed to the user.
+            - 'user_response': The user's answer to the question.
+            - `idea` (str): The overarching idea, extracted as `self.idea_data.idea`.
+            - `thought` (str): The specific thought being evaluated,
+            extracted as `thought.thought`.
+        - Output:
+            - `evaluation_model` (EvaluationJSONModel): A structured evaluation model
+            containing the evaluation results as a nested `evaluation` field of
+            type `EvaluationCriteria`.
+
+        3. Validation and Parsing:
+        - The `evaluation` field from `EvaluationJSONModel` is validated as
+        an `EvaluationCriteria` object using `EvaluationCriteria.model_validate`.
+        - This ensures the data conforms to the expected structure.
+
+        4. Model Differences:
+        - `EvaluationJSONModel`:
+            - Represents the complete evaluation response returned from the evaluator agent.
+            - Contains metadata and other fields beyond just the evaluation criteria.
+            - Includes the `evaluation` field, which holds the evaluation details.
+        - `EvaluationCriteria`:
+            - A subset of the `EvaluationJSONModel`, representing only the evaluation details.
+            - Includes specific scores (`criteria`), explanations (`explanations`),
+            and a `total_score`.
+
+        5. Output:
+        - Returns a validated `EvaluationCriteria` object containing:
+            - `criteria` (Dict[str, int]): Scoring for specific evaluation dimensions
+            (e.g., relevance, clarity).
+            - `explanations` (Dict[str, str]): Textual explanations for the scores.
+            - `total_score` (float): An aggregated score across all dimensions.
+
+        Raises:
+            ValidationError: If the evaluation model fails validation.
+
+        Returns:
+            EvaluationCriteria: The validated evaluation criteria model.
+        """
+        # Call evaluator agent's evaluation_async method to return a EvaluationJSONModel model
+        evaluation_model, _ = await self.evaluator_agent.evaluate_async(
             question=question,
             answer=user_response,
-            idea=self.idea_data.idea,
-            thought=thought.thought,
+            idea=self.idea_data.idea,  # from pyd model -> attribut (str)
+            thought=thought.thought,  # from pyd model -> attribute (str)
         )  # The 2nd parameter returned is not used in this module
-        return evaluation.evaluation
+
+        # Log raw evaluation data for debugging
+        logger.debug(
+            f"EvolutionCriteria data to validate: {evaluation_model.evaluation}"
+        )  # TODO: Debugging; delete later
+        # Parse EvaluationJSONModel -> EvaluationCriteria Validate the evaluation model
+        # model validate, and then return EvalCriteria model
+        try:
+            # Parse model and validate
+            evaluation_criteria_model = EvaluationCriteria.model_validate(
+                evaluation_model.evaluation
+            )
+
+            logger.info("Evaluation criteria model validated and returned.")
+
+            return evaluation_criteria_model  # Returning validated EvaluationCriteria
+        except ValidationError as e:
+            logger.error(f"Validation failed for evaluation model: {e}")
+            raise
 
     async def log_exchange(self, role: str, message: str, scoped: bool = False) -> None:
         """Log an interaction and optionally store it in scoped logs."""

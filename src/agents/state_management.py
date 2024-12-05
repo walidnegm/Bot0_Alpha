@@ -93,8 +93,6 @@ class StateManager:
         # Return the user's state
         return self.states[user_id]
 
-        return self.states[user_id]
-
     def update_state(self, user_id: str, **updates):
         logger.debug(f"Updating state for user {user_id} with updates: {updates}")
 
@@ -108,15 +106,19 @@ class StateManager:
                 setattr(state, key, value)
 
         # Automatically append evaluations if provided
-        if isinstance(
-            updates["evaluation"], EvaluationCriteria
-        ):  # more type safety than " if 'evaluation' in updates
-            state.evaluations.append(updates["evaluation"])
-            logger.debug(
-                f"Appended evaluation for user {user_id}: {updates['evaluation'].model_dump()}"
-            )
-        else:
-            logger.warning(f"Invalid evaluation format for user {user_id}")
+        # *keep it flexible for now w/t the extra if "current_evaluation"
+        # (current_evaluation may be be fixed as the ultimate key)
+        if "current_evaluation" in updates:
+            if isinstance(updates["current_evaluation"], EvaluationCriteria):
+                state.evaluations.append(updates["current_evaluation"])
+                logger.debug(
+                    f"Appended evaluation for user {user_id}: {updates['current_evaluation'].model_dump()}"
+                )
+            else:
+                logger.warning(
+                    f"Invalid evaluation format for user {user_id}. Expected 'EvaluationCriteria', "
+                    f"got {type(updates['current_evaluation'])}."
+                )
 
         state.last_updated = datetime.now().isoformat()
         self.persist_states()

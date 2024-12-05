@@ -1,5 +1,10 @@
+"""
+Run pipeline to conduct the interview based on ideas generated JSON files.
+"""
+
 from pathlib import Path
 import asyncio
+from datetime import datetime
 import logging
 import logging_config
 
@@ -8,6 +13,7 @@ from project_config import (
     CLAUDE_INDEXED_MODELS_DIR,
     OPENAI_INDEXED_MODELS_DIR,
     MEMORY_DIR,
+    INTERVIEW_STATES_DIR,
 )
 
 logger = logging.getLogger(__name__)
@@ -19,8 +25,25 @@ source_file_list = [
     "array_of_thoughts_output_with_index_embedded_software_development_in_aerospace_claude.json",
     "array_of_thoughts_output_with_index_embedded_software_development_in_automotive_claude.json",
 ]
-source_data_file_path = CLAUDE_INDEXED_MODELS_DIR / source_file_list[0]
-memory_file_path = MEMORY_DIR / "chat_memory.json"
+
+# *Data for testing
+# source_data_file_path = CLAUDE_INDEXED_MODELS_DIR / source_file_list[0]
+source_data_file_path = CLAUDE_INDEXED_MODELS_DIR / source_file_list[1]
+# source_data_file_path = CLAUDE_INDEXED_MODELS_DIR / source_file_list[2]
+
+
+# Set up dynamic file names to include date and time
+
+# Base file paths
+memory_file_base = MEMORY_DIR / "chat_memory"
+interview_state_file_base = INTERVIEW_STATES_DIR / "interview_states_data"
+
+# Current timestamp
+timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+
+# Dynamic file paths
+memory_file_path = f"{memory_file_base}_{timestamp}.json"
+interview_state_file_path = f"{interview_state_file_base}_{timestamp}.json"
 
 
 def run_interview_pipeline():

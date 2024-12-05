@@ -33,6 +33,7 @@ from models.llm_response_models import (
     TextResponse,
     TabularResponse,
 )
+from models.indexed_thought_models import IndexedIdeaJSONModel
 from models.evaluation_models import (
     EvaluationCriteria,
     QuestionAnswerPair,
@@ -132,8 +133,9 @@ class EvaluatorAgentAsync:
             thought (str): Additional context thought.
 
         Returns:
-            Tuple[EvaluationCriteria, str]:
-            The evaluation criteria with scores and explanations, and the raw evaluation JSON.
+            Tuple[EvaluationJSONModel, str]:
+            - the full eval model, and
+            - the raw evaluation JSON.
         """
         # qa_pair = QuestionAnswerPair(question=question, answer=answer)
         # qa_pair_json = qa_pair.model_dump_json(indent=2)  # Nicely formatted JSON string
@@ -168,10 +170,11 @@ class EvaluatorAgentAsync:
         logger.info(
             f"Raw JSON output of evaluation_model:\n{raw_evaluation_json}"
         )  # TODO: debudding, delete later
+
         return (
             evaluation_model,
             raw_evaluation_json,
-        )  # return both the model and raw json
+        )  # return both the model (EvaluationJSONModel) and raw json
 
     async def _call_llm_async(
         self,

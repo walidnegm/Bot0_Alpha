@@ -36,8 +36,8 @@ CLAUDE_INDEXED_MODELS_DIR = CLAUDE_IDEAS_DIR = (
 
 
 # *States data direcotry (for state managements, sessions, user, etc.)
-INTERVIEW_STATES_INPUT_OUTPUT_DIR = INPUT_OUTPUT_DIR / "interview_states"
-INTERVIEW_STATES_FILE = INTERVIEW_STATES_INPUT_OUTPUT_DIR / "interview_states_data.json"
+INTERVIEW_STATES_DIR = INPUT_OUTPUT_DIR / "interview_states"
+INTERVIEW_STATES_FILE = INTERVIEW_STATES_DIR / "interview_states_data.json"
 
 # ! JSON output file names for for ideas, thoughts, and sub_thoughts
 # ! These names are "root" names: after importing them, you need to insert suffix in them
