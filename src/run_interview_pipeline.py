@@ -47,14 +47,17 @@ interview_state_file_path = f"{interview_state_file_base}_{timestamp}.json"
 
 
 def run_interview_pipeline():
+    """Run pipeline for the interviewing process."""
     data_file = Path(source_data_file_path)
     memory_file = Path(memory_file_path)
+    interview_state_file = Path(interview_state_file_path)
     user_id = "user_1"
     asyncio.run(
         interview_pipeline_async(
             thought_data_file=data_file,
             user_id=user_id,
             memory_file=memory_file,
+            interview_state_file=interview_state_file,
             target_thought_indexes=[0],
         )
     )

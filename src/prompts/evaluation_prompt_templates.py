@@ -22,6 +22,15 @@ Scoring Guidelines:
 - Provide concise, objective explanations
 - Explicitly consider the question context in your evaluation
 
+Special Handling for Insufficient Responses:
+- If the answer appears to be a minimal, non-informative response that fails to engage with the question, evaluate the response critically.
+(examples: "I don't know", "Not sure", etc.), 
+- Consider:
+  1. Is this a genuine acknowledgment of limited knowledge?
+  2. Does the response show any attempt to provide context or partial understanding?
+  3. Could the response be expanded or clarified?
+- Adjust scores accordingly, potentially lowering scores for relevance, specificity, and clarity if the response is truly uninformative.
+
 Produce a STRICTLY FORMATTED JSON response with the following requirements:
 {{
     "evaluation": {{
