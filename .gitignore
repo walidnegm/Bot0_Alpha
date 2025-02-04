@@ -27,6 +27,13 @@ VoiceAssist/venvwin/
 
 !/rasa/myenv
 
+/aws-cli
+
+/node_modules
+
+/.aws
+
+/llama.cpp
 
 myenv
 
